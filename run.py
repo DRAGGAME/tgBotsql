@@ -107,7 +107,7 @@ async def main():
     await conn()
 
     # Добавляем задачу по умолчанию
-    scheduler.add_job(start_cmd, IntervalTrigger(seconds=10), id='nice')
+    scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id='nice')
 
     # Стартуем шедулер, задача будет активна по умолчанию
     scheduler.start()

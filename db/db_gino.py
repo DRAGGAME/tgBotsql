@@ -57,7 +57,7 @@ class Sqlbase:
                 Id SERIAL PRIMARY KEY,
                 address TEXT,
                 message TEXT,
-                photo TEXT,
+                photo BLOB,
                 place TEXT
             );
         '''

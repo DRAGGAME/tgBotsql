@@ -1,8 +1,10 @@
 import base64
 import json
 import os
+import io
 import logging
 
+from PIL import Image
 from transliterate import translit
 import qrcode
 from aiogram import Router, F, Bot
@@ -335,17 +337,45 @@ async def name_place(message: Message, state: FSMContext):
 @router.message(Address.messages, F.text)
 async def messages(message: Message, state: FSMContext):
     await state.update_data(messages=message.text)
-    await message.answer('Введите фото к заведению (ссылку).')
+    await message.answer('Введите фото(Через ПК - нужна пометка "с сжатием"):')
     await state.set_state(Address.photo)
 
 
-@router.message(Address.photo, F.text)
+@router.message(Address.photo)
 async def photos(message: Message, state: FSMContext):
-    await state.update_data(photos=message.text)
-    data = await state.get_data()
-    await sqlbase.ins(data['addres'], data['messages'], data['photos'], data['name_place'])
-    await message.answer(f"Данные сохранены: {data}")
-    await state.clear()
+    if message.photo:
+        # Получаем имя файла
+        file_name = f"{message.photo[0].file_id}.jpeg"
+
+        # Скачиваем фотографию
+        await bot.download(message.photo[-1], destination=file_name)
+
+        # Открываем и сжимаем изображение
+        image = Image.open(file_name)
+        image = image.convert("RGB")  # Преобразуем в RGB, если изображение имеет альфа-канал
+        img_byte_arr = io.BytesIO()  # Создаем поток в памяти
+        image.save(img_byte_arr, format="JPEG", quality=90, optimize=True)  # Сохраняем сжато в поток
+
+        # Преобразуем в BLOB
+        img_blob = img_byte_arr.getvalue()
+
+        # Сохраняем blob в состояние FSM
+        await state.update_data(photos=img_blob)
+        data = await state.get_data()
+
+        # Сохраняем данные в базу
+        await sqlbase.ins(data['addres'], data['messages'], data['photos'], data['name_place'])
+
+        # Уведомление пользователя
+
+        # Удаляем временный файл
+        if os.path.exists(file_name):
+            os.remove(file_name)
+
+        # Очищаем состояние
+        await state.clear()
+    else:
+        await message.answer('Это не фото')
 
 
 @router.message(Command('remove_place'))
@@ -415,10 +445,7 @@ async def remove_places(message: Message, state: FSMContext):
     await state.clear()
 
 # Глобальный обработчик команды Stop
-@router.message(F.text.lower() == 'stop')
-async def handle_stop(message: Message, state: FSMContext):
-    await message.answer("Процесс был прерван.")
-    await state.clear()
+
 
 @router.message(Command('qr'))
 async def qr(message: Message, state: FSMContext):
@@ -426,7 +453,7 @@ async def qr(message: Message, state: FSMContext):
         if message.text == 'Stop':  # Проверяем, завершил ли пользователь процесс
             await message.answer("Принудительно завершён процесс добавления адресов.")
             await state.clear()
-        await message.answer('Напишите название файла(Для вашего удобства)')
+        await message.answer('Напишите название(Возможно любое)')
         await state.set_state(Qr_r.name)
     else:
         await message.answer('Вы не под администратором')
@@ -436,6 +463,7 @@ async def qr(message: Message, state: FSMContext):
 async def name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
     await send_deep_links(message)
+    await message.answer('Скопируйте ссылку для которой нужен QR и отправьте её боту')
     await state.set_state(Qr_r.url)
 
 @router.message(Qr_r.url)
@@ -476,6 +504,7 @@ async def help(message: Message):
                         '/adds_address - добавить новое место\n'
                         '/remove_place - удалить какое-либо место\n'
                         '/remove_address - удалить все места с определённым адресом\n'
+                        '/qr - создание QR-кода для заведений\n'
                         '/generate_links - для получения ссылок\n\n'
                         'P.S Отправка уведомлений каждые 60 секунд.'
                         'Не забывайте выключать сообщения во время процесса администрирования')
