@@ -23,6 +23,7 @@ router = Router()
 bot = Bot(token=os.getenv('API_KEY'), parce_mode='MARKDOWN')
 connection = os.getenv('connection')
 
+
 class UpdLogin(StatesGroup):
     newlog = State()
 
@@ -30,12 +31,15 @@ class UpdLogin(StatesGroup):
 class UpdPassword(StatesGroup):
     newpass = State()
 
+
 class Admins(StatesGroup):
     adm = State()
+
 
 class LoginState(StatesGroup):
     name = State()
     password = State()
+
 
 class Address(StatesGroup):
     adress = State()
@@ -51,21 +55,15 @@ class Qr_r(StatesGroup):
 class remove_p_a(StatesGroup):
     address = State()
     place = State()
-#
-# @router.message(Command('ClearBaseServers'))
-# async def clearbase(message: Message):
-#     sqlbase.upd('severs')
-# @router.message(Command('ClearBaseAdm'))
-# async def clearbase(message: Message):
-#     sqlbase.upd('adm')
+
+
+#Для транскрипции в ссылках
 def transliterate_text(text):
     return translit(text, language_code='ru', reversed=True)
 
-
-
+#Кодирование
 def encode_data(data):
     return base64.urlsafe_b64encode(data.encode()).decode()
-
 
 # Функция декодирования для deep_link
 def decode_data(payload):
@@ -82,7 +80,7 @@ async def generate_deep_link(place_name):
     bot_username = "deduwka_beerbox_bot"  # Укажи username своего бота
     return f"https://t.me/{bot_username}?start={encoded_place}"
 
-
+#Создание ссылок
 async def send_deep_links(message: Message):
         # Получаем список мест из базы
     await sqlbase.connect()
@@ -101,7 +99,7 @@ async def send_deep_links(message: Message):
     else:
         await message.answer("Нет доступных мест для генерации ссылок.")
 
-
+#Получение мест
 async def place_for(message: Message):
     await sqlbase.connect()
 
@@ -109,19 +107,30 @@ async def place_for(message: Message):
     first = {row[0] for row in place}
     return first
 
+#Получение адресов
 async def address_for(message: Message):
     await sqlbase.connect()
 
     place = await sqlbase.execute_query('SELECT address FROM message')
     first = {row[0] for row in place}
     return first
-'''Апдейт для входа'''
 
+#Для остановки ЛЮБЫХ процессов
 @router.message(F.text.lower() == 'stop')
 async def handle_stop(message: Message, state: FSMContext):
     await message.answer("Процесс был прерван.")
     await state.clear()
 
+#Для выхода из админа
+@router.message(F.text.lower() == 'exit')
+async def handle_stop(message: Message, state: FSMContext):
+    await message.answer("Вы вышли из админа")
+    global base
+    base = None
+    await sqlbase.close()
+    await state.clear()
+
+#Для логина
 @router.message(Command('login'))
 async def login(message: Message, state: FSMContext):
     await sqlbase.connect()
@@ -173,16 +182,13 @@ async def password(message: Message, state: FSMContext):
     else:
         await message.answer('Пароль - неправильный')
 
-'''Апдейт для админов'''
-
-
+#Добавление админов
 @router.message(Command('AddsAdmins'))
 async def AddsAdmins(message: Message, state: FSMContext):
     global base
     await sqlbase.connect()
 
     if base == 'one':
-
         await message.answer('Внимание! Заранее подготовьте id пользователей, чтобы их найти, вы должны зайти в продвинутые '
                              'Настройки -> Продвинутые настройки -> Экспериментальные настройки -> '
                              'И включить Show Peer IDs in Profile, после в каждом профиле есть id, вы должны вставить свой '
@@ -228,8 +234,7 @@ async def AddAdmin(message: Message, state: FSMContext):
     except Error as e:
         await message.answer(f"Произошла ошибка: {str(e)}")
 
-'''Апдейт для логина'''
-
+#Изменение логина
 @router.message(Command('UpdLogin'))
 async def upd(message: Message, state: FSMContext):
     global base
@@ -267,9 +272,7 @@ async def newlogs(message: Message, state: FSMContext):
             await message.answer('Логины не совпадают. Повторите ввод нового логина.')
             await state.update_data(altnewlog=None)  # Сбрасываем первый ввод
 
-
-'''Апдейт для пароля'''
-
+#Изменение пароля
 @router.message(Command('UpdPassword'))
 async def upd(message: Message, state: FSMContext):
     if base == 'one':
@@ -308,8 +311,7 @@ async def new_password(message: Message, state: FSMContext):
             await message.answer('Пароли не совпадают. Повторите ввод нового пароля.')
             await state.set_state(UpdPassword.newpass)  # Возвращаем в текущее состояние
 
-'''Добавление адреса'''
-
+#Добавление адресов
 @router.message(Command('adds_address'))
 async def start_addres(message: Message, state: FSMContext):
     global base
@@ -319,14 +321,14 @@ async def start_addres(message: Message, state: FSMContext):
     else:
         await message.answer('Вы не под администратором')
 
-
+#Для названия
 @router.message(Address.adress, F.text)
 async def addres(message: Message, state: FSMContext):
     await state.update_data(addres=message.text)
     await message.answer('Введите название')
     await state.set_state(Address.name_place)
 
-
+#Для сообщения
 @router.message(Address.name_place, F.text)
 async def name_place(message: Message, state: FSMContext):
     await state.update_data(name_place=message.text)
@@ -340,7 +342,7 @@ async def messages(message: Message, state: FSMContext):
     await message.answer('Введите фото(Через ПК - нужна пометка "с сжатием"):')
     await state.set_state(Address.photo)
 
-
+#Добавление фото
 @router.message(Address.photo)
 async def photos(message: Message, state: FSMContext):
     if message.photo:
@@ -371,13 +373,13 @@ async def photos(message: Message, state: FSMContext):
         # Удаляем временный файл
         if os.path.exists(file_name):
             os.remove(file_name)
-
+        await message.answer('Адрес и место добавлены')
         # Очищаем состояние
         await state.clear()
     else:
         await message.answer('Это не фото')
 
-
+#Удаление места
 @router.message(Command('remove_place'))
 async def remove_place(message: Message, state: FSMContext):
     if base == 'one':
@@ -388,6 +390,7 @@ async def remove_place(message: Message, state: FSMContext):
                              '\nВведите место:', parse_mode='Markdown')
         mesage = await place_for(message)
         mesage = str(mesage)
+        #Убираем лишние знаки
         mesage = mesage.replace('{', '')
         mesage = mesage.replace('}', '')
         mesage = mesage.replace("'", '')
@@ -397,8 +400,7 @@ async def remove_place(message: Message, state: FSMContext):
     else:
         await message.answer('Вы не под администратором')
 
-
-
+#Удаление по месту
 @router.message(remove_p_a.place)
 async def remove_places(message: Message, state: FSMContext):
     if message.text == 'Stop':  # Проверяем, завершил ли пользователь процесс
@@ -414,6 +416,7 @@ async def remove_places(message: Message, state: FSMContext):
     except Exception as e:
         await message.answer(f"Произошла ошибка: {str(e)}")
 
+#Удаление по адресу
 @router.message(Command('remove_address'))
 async def remove_place(message: Message, state: FSMContext):
     if base == 'one':
@@ -444,9 +447,7 @@ async def remove_places(message: Message, state: FSMContext):
     await message.answer('Успешно удалено')
     await state.clear()
 
-# Глобальный обработчик команды Stop
-
-
+#Получение QR-кода
 @router.message(Command('qr'))
 async def qr(message: Message, state: FSMContext):
     if base == 'one':
@@ -482,7 +483,7 @@ async def qr(message: Message, state: FSMContext):
     os.remove(file_name)
     await state.clear()
 
-
+#Сгенерировать URL
 @router.message(Command(commands=["generate_links"]))
 async def send_deep(message: Message):
     if base == 'one':
@@ -490,6 +491,7 @@ async def send_deep(message: Message):
     else:
         await message.answer('Вы не под администратором')
 
+#Для помощи
 @router.message(Command('help'))
 async def help(message: Message):
     await message.answer('Команды без использования админских прав:\n'
@@ -497,7 +499,8 @@ async def help(message: Message):
                         '/StopMessage - Остановить отправку сообщений\n\n'
                         'Команды с использованием админских прав\n'
                         '/login - для входа под ролью администратора\n'
-                        '/Stop - для остановки процессов(логина)\n'
+                        'Stop - остановка любого процесса\n'
+                        'Exit - выход из админа и остановка любого процеса\n'
                         '/UpdLogin - изменить логин\n'
                         '/UpdPassword - изменить пароль\n'
                         '/AddsAdmins - добавить админов\n'
@@ -507,4 +510,5 @@ async def help(message: Message):
                         '/qr - создание QR-кода для заведений\n'
                         '/generate_links - для получения ссылок\n\n'
                         'P.S Отправка уведомлений каждые 60 секунд.'
-                        'Не забывайте выключать сообщения во время процесса администрирования')
+                        'Не забывайте выключать сообщения во время процесса администрирования\n'
+                         'Не забудьте выйти из администратора.')

@@ -44,7 +44,7 @@ async def start_message(message: Message):
 
     if not job:
         # Если задача не была добавлена, добавляем её
-        scheduler.add_job(start_cmd, IntervalTrigger(seconds=10), id='nice')
+        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id='nice')
 
     # Включаем задачу
     scheduler.resume_job('nice')
@@ -97,6 +97,7 @@ async def start_cmd():
                 for admin_id in admins[0:2]:
                     if admin_id != 'None':
                         await bot.send_message(chat_id=admin_id, text=message)
+        await sqlbase.close()
 
     except Error as e:
         connection.rollback()
