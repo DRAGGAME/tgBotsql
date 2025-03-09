@@ -4,10 +4,11 @@ import os
 import psycopg2
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
-from psycopg2 import Error
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from handlers.starts import start_cmd
+from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from config import ip, PG_password, PG_user, DATABASE
 from db.db_gino import Sqlbase
@@ -21,12 +22,7 @@ bot = Bot(token=os.getenv('API_KEY'))
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)
 
-# Переменная для отслеживания последнего обработанного ID
-outs = 1
 sqlbase = Sqlbase()
-
-# Создание глобального шедулера
-scheduler = AsyncIOScheduler()
 
 
 async def conn():
@@ -40,81 +36,90 @@ async def start(message: Message):
 
 @dp.message(Command('StartMessage'))
 async def start_message(message: Message):
-    job = scheduler.get_job('nice')
+    id_user = message.from_user.id
+    job = scheduler.get_job(str(id_user))
 
     if not job:
         # Если задача не была добавлена, добавляем её
-        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id='nice')
+        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(id_user))
 
     # Включаем задачу
-    scheduler.resume_job('nice')
+    scheduler.resume_job(str(id_user))
     await message.answer('Теперь сообщения будут доставляться вам')
 
 
 @dp.message(Command('StopMessage'))
 async def stop_message(message: Message):
-    job = scheduler.get_job('nice')
-
+    id_user = message.from_user.id
+    job = scheduler.get_job(str(id_user))
     if job:
         # Останавливаем задачу, если она существует
-        scheduler.pause_job('nice')
+        scheduler.pause_job(str(id_user))
         await message.answer('Теперь сообщения не доставляются вам')
     else:
         await message.answer('Задача не была запущена.')
 
 
-async def start_cmd():
-    connection.autocommit = True
-    try:
-        with connection.cursor() as cur:
-            cur.execute(f"LISTEN {PG_user};")
-            cur.execute(
-                f"SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10, id_back FROM adm ORDER BY id DESC LIMIT 1;")
-            rows = cur.fetchall()
-            admins = []
-            for row in rows[0]:
-                admins.append(row)
-            last_processed_id = admins[10]
-
-            cur.execute(
-                f"SELECT id, Data_times, Place, Id_user, Rating, Review FROM servers WHERE id > {last_processed_id} ORDER BY id ASC;")
-            rows = cur.fetchall()
-            cur.execute("SELECT MAX(id) FROM servers;")
-            result = cur.fetchone()
-
-            if result and result[0]:
-                last_processed_id = result[0]
-                last_processed_id = str(last_processed_id)
-                last_processed_id = last_processed_id.replace(',', '')
-                cur.execute("UPDATE adm SET id_back =%s WHERE id=1", (last_processed_id,))
-
-            for row in rows:
-                message = (f"Дата: {row[1]}\n"
-                           f"Место: {row[2]}\n"
-                           f"Пользователь(id): {row[3]}\n"
-                           f"Рейтинг: {row[4]}\n"
-                           f"Отзыв: {row[5]}")
-                for admin_id in admins[0:2]:
-                    if admin_id != 'None':
-                        await bot.send_message(chat_id=admin_id, text=message)
-        await sqlbase.close()
-
-    except Error as e:
-        connection.rollback()
-        print(f"Transaction failed: {str(e)}")
-
-
 async def main():
-    await conn()
+    try:
+        await conn()  # Подключение к БД
+        x1 = await sqlbase.execute_query(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'adm')")
+        print(x1)
+        if str(x1) in '[<Record exists=False>]':
+            print('найс')
+            await sqlbase.execute_query('''
+                CREATE TABLE IF NOT EXISTS adm (
+                    Id SERIAL PRIMARY KEY,
+                    adm_1 TEXT,
+                    adm_2 TEXT, 
+                    adm_3 TEXT, 
+                    adm_4 TEXT, 
+                    adm_5 TEXT, 
+                    adm_6 TEXT, 
+                    adm_7 TEXT, 
+                    adm_8 TEXT, 
+                    adm_9 TEXT,
+                    adm_10 TEXT,
+                    id_back INT,
+                    name TEXT, 
+                    password TEXT,
+                    name_bot TEXT);
+            ''')
+            await sqlbase.execute_query('''
+            INSERT INTO adm (id_back, name, password)
+            VALUES ($1, $2, $3)''', (0, '12345', '12345'))
+        x2 = await sqlbase.execute_query(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'message')")
 
-    # Добавляем задачу по умолчанию
-    scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id='nice')
+        if str(x2) in '[<Record exists=False>]':
+            query = '''
+                CREATE TABLE IF NOT EXISTS message (
+                    Id SERIAL PRIMARY KEY,
+                    address TEXT,
+                    message TEXT,
+                    photo BYTEA,
+                    place TEXT,
+                    place_t TEXT);'''
+            await sqlbase.execute_query(query)
+        x3 = await sqlbase.execute_query(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'servers')")
 
-    # Стартуем шедулер, задача будет активна по умолчанию
-    scheduler.start()
+        if str(x3) in '[<Record exists=False>]':
+            await sqlbase.spaltenerstellen()
 
-    await dp.start_polling(bot)
+        rows = await sqlbase.execute_query(
+            "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
+        )
+        for count, row in enumerate(rows[0]):
+            if row not in (None, 'Нет', 'None'):
+                scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), args=(str(row), count), id=str(row))
 
+        scheduler.start()  # Запускаем шедулер
+        await dp.start_polling(bot)  # Запускаем бота
+    finally:
+        await sqlbase.close()  # Закрываем соединение с БД
+        scheduler.shutdown()  # Останавливаем APScheduler
 
 if __name__ == '__main__':
     try:
