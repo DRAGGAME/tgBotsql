@@ -11,13 +11,12 @@ from handlers.starts import start_cmd
 from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from config import ip, PG_password, PG_user, DATABASE
-from db.db_gino import Sqlbase
+from db.db import Sqlbase
 from handlers import adminstration_handlers
 
 logging.basicConfig(level=logging.INFO)
 
-connection = psycopg2.connect(host=ip, user=PG_user, password=PG_password, database=DATABASE)
-load_dotenv()
+# load_dotenv()
 bot = Bot(token=os.getenv('API_KEY'))
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)

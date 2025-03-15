@@ -2,32 +2,34 @@ import base64
 import os
 import io
 import logging
+from uuid import uuid4
+
 from PIL import Image
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from transliterate import translit
 import qrcode
 from jobsadd.jobadd import scheduler
-
+import matplotlib.pyplot as plt
 from aiogram import Router, F, Bot, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, FSInputFile, InputFile
 from psycopg2 import Error
-from db.db_gino import Sqlbase
-from dotenv import load_dotenv
+from db.db import Sqlbase
+# from dotenv import load_dotenv
 
 from handlers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG)
-load_dotenv()
+# load_dotenv()
 sqlbase = Sqlbase()
 
 base = None
 router = Router()
 bot = Bot(token=os.getenv('API_KEY'), parce_mode='MARKDOWN')
-connection = os.getenv('connection')
 
 class UpdLogin(StatesGroup):
     newlog = State()
@@ -67,7 +69,7 @@ class Name_bot(StatesGroup):
 
 #Для транскрипции в ссылках
 def transliterate_text(text):
-    return translit(text, language_code='ru', reversed=True )
+    return translit(text, language_code='ru', reversed=True)
 
 #Кодирование
 def encode_data(data):
@@ -151,7 +153,7 @@ async def handle_stop(message: Message, state: FSMContext):
     await state.clear()
 
 #Для логина
-@router.message(Command('login'))
+@router.message(Command('Login'))
 async def login(message: Message, state: FSMContext):
     await sqlbase.connect()
     # Выполнение запроса для получения имени и пароля
@@ -348,7 +350,7 @@ async def new_password(message: Message, state: FSMContext):
             await state.set_state(UpdPassword.newpass)  # Возвращаем в текущее состояние
 
 #Добавление адресов
-@router.message(Command('adds_address'))
+@router.message(Command('Adds_address'))
 async def start_addres(message: Message, state: FSMContext):
     global base
     if base == 'one':
@@ -432,7 +434,7 @@ async def photos(message: Message, state: FSMContext):
         await message.answer('Это не фото')
 
 #Удаление места
-@router.message(Command('remove_place'))
+@router.message(Command('Remove_place'))
 async def remove_place(message: Message, state: FSMContext):
     """Удаление мест"""
     if base == 'one':
@@ -467,7 +469,7 @@ async def remove_places(message: Message, state: FSMContext):
         await message.answer(f"Произошла ошибка: {str(e)}")
 
 #Удаление по адресу
-@router.message(Command('remove_address'))
+@router.message(Command('Remove_address'))
 async def remove_place(message: Message, state: FSMContext):
     if base == 'one':
         if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
@@ -495,7 +497,7 @@ async def remove_places(message: Message, state: FSMContext):
     await state.clear()
 
 #Получение QR-кода
-@router.message(Command('qr'))
+@router.message(Command('Qr'))
 async def qr(message: Message, state: FSMContext):
     if base == 'one':
         if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
@@ -553,7 +555,53 @@ async def name(message: Message, state: FSMContext):
     await sqlbase.close()
     await message.answer('Имя перезаписано')
 
-@router.message(Command(commands=["generate_links"]))
+import os
+import matplotlib.pyplot as plt
+from uuid import uuid4
+
+@router.message(Command('review'))
+async def review(message: Message):
+    await sqlbase.connect()
+
+    # Генерация уникального идентификатора для файла
+    uuid = uuid4().hex  # Преобразуем UUID в строку для использования в имени файла
+
+    # Запрос к БД для получения данных
+    data = await sqlbase.execute_query("""
+        SELECT 
+            DATE_TRUNC('hour', data_times::TIMESTAMP) AS hour,
+            AVG(rating) AS average_rating
+        FROM servers
+        WHERE data_times::TIMESTAMP >= NOW() - INTERVAL '24 hours'
+        GROUP BY hour
+        ORDER BY hour;
+    """)
+
+    # Обработка данных
+    hours = [row['hour'] for row in data]
+    avg_ratings = [row['average_rating'] for row in data]
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(hours, avg_ratings, width=0.03)  # Уменьшаем ширину столбцов
+
+
+    # Настраиваем оси и подписи
+    plt.xlabel('Дата')
+    plt.ylabel('Оценка')
+    plt.title('Средняя оценка по часам за последние 24 часа')
+    plt.xticks(rotation=45)
+    # Сохраняем график в файл
+    file_name = f'{uuid}.png'
+    plt.tight_layout()
+    plt.savefig(file_name)  # Сохраняем изображение в файл
+    photo = FSInputFile(f'{uuid}.png')
+    await message.answer_photo(photo)
+    # Получаем ID пользователя
+    os.remove(f'{uuid}.png')
+    # Закрытие соединения с БД
+    await sqlbase.close()
+
+@router.message(Command(commands=["Generate_links"]))
 async def send_deep(message: Message):
     """Генерация чисто ссылок"""
     if base == 'one':
@@ -567,19 +615,21 @@ async def send_deep(message: Message):
 async def help(message: Message):
     await message.answer('Команды без использования админских прав:\n'
                          '/StartMessage - Запустить отправку сообщений(по умолчанию)\n'
-                        '/StopMessage - Остановить отправку сообщений\n\n'
-                        'Команды с использованием админских прав\n'
-                        '/login - для входа под ролью администратора\n'
-                        'Stop - остановка любого процесса(Как сообщение)\n'
-                        'Exit - выход из админа и остановка любого процеса(Как сообщение)\n'
-                        '/UpdLogin - изменить логин\n'
-                        '/UpdPassword - изменить пароль\n'
-                        '/AddsAdmins - добавить админов\n'
-                        '/adds_address - добавить новое место\n'
-                        '/remove_place - удалить какое-либо место\n'
-                        '/remove_address - удалить все места с определённым адресом\n'
-                        '/qr - создание QR-кода для заведений\n'
-                        '/generate_links - для получения ссылок\n\n'
-                        'P.S Отправка уведомлений каждые 60 секунд.'
-                        'Не забывайте выключать сообщения во время процесса администрирования\n'
-                        'Не забудьте выйти из администратора.')
+                         '/StopMessage - Остановить отправку сообщений\n\n'
+                         'Команды с использованием админских прав\n'
+                         '/Login - для входа под ролью администратора(Работать под админом, может только один человек)\n'
+                         'Stop - остановка любого процесса(Как сообщение)\n'
+                         'Exit - выход из админа, предварительно завершив процесс(Как сообщение)\n'
+                         '/UpdLogin - изменить логин\n'
+                         '/UpdPassword - изменить пароль\n'
+                         '/AddsAdmins - добавить админов\n'
+                         '/New_name - Изменить имя клиентского бота(нужно для осуществления работы ссылок ботов и QR-кодов, работающих на основе ссылок\n'
+                         '/Adds_address - добавить новое место\n'
+                         '/Remove_address - удалить все места с определённым адресом\n'
+                         '/Remove_place - удалить какое-либо место\n'
+                         '/Remove_place - удалить какое-либо место\n'
+                         '/Qr - создание QR-кода для заведений\n'
+                         '/Generate_links - для получения ссылок\n\n'
+                         'P.S Отправка уведомлений каждые 60 секунд.'
+                         'Не забывайте выключать сообщения во время процесса администрирования\n'
+                         'Не забудьте выйти из администратора.')

@@ -3,7 +3,7 @@ import os
 from aiogram import Bot
 
 from config import PG_user
-from db.db_gino import Sqlbase
+from db.db import Sqlbase
 bot = Bot(token=os.getenv('API_KEY'))
 sqlbase = Sqlbase()
 async def start_cmd(adm: str, count: int):
