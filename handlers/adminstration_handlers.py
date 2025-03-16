@@ -2,21 +2,18 @@ import base64
 import os
 import io
 import logging
+import matplotlib.pyplot as plt
 from uuid import uuid4
-
 from PIL import Image
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-
 from transliterate import translit
 import qrcode
 from jobsadd.jobadd import scheduler
-import matplotlib.pyplot as plt
 from aiogram import Router, F, Bot, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, FSInputFile, InputFile
+from aiogram.types import Message, FSInputFile
 from psycopg2 import Error
 from db.db import Sqlbase
 # from dotenv import load_dotenv
@@ -171,7 +168,7 @@ async def login(message: Message, state: FSMContext):
     await state.set_state(LoginState.name)
 
 
-@router.message(LoginState.name)
+@router.message(LoginState.name, F.text)
 async def name(message: Message, state: FSMContext):
     data = await state.get_data()
     namen = data.get("namen")
@@ -188,7 +185,7 @@ async def name(message: Message, state: FSMContext):
         await message.answer('Имя не правильное. Введите правильно')
 
 
-@router.message(LoginState.password)
+@router.message(LoginState.password, F.text)
 async def password(message: Message, state: FSMContext):
     data = await state.get_data()
     passwords = data.get("passwords")
@@ -225,13 +222,12 @@ async def AddsAdmins(message: Message, state: FSMContext):
     else:
         await message.answer('Вы не под администратором')
 
-@router.message(Admins.adm)
+@router.message(Admins.adm, F.text)
 async def AddAdmin(message: Message, state: FSMContext):
     global base
     if message.text.lower() == 'stop':
         await message.answer("Добавление администраторов завершено.")
         await state.clear()
-        base = 'Too'
         await sqlbase.connect()
         rows = await sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
@@ -244,7 +240,6 @@ async def AddAdmin(message: Message, state: FSMContext):
         # Стартуем шедулер, задача будет активна по умолчанию
         scheduler.start()
         return
-
         # Получаем текущие данные из состояния
     data = await state.get_data()
 
@@ -281,7 +276,7 @@ async def upd(message: Message, state: FSMContext):
     else:
         await message.answer('Вы не под администратором')
 
-@router.message(UpdLogin.newlog)
+@router.message(UpdLogin.newlog, F.text)
 async def newlogs(message: Message, state: FSMContext):
     # Получаем данные из состояния
     data = await state.get_data()
@@ -320,7 +315,7 @@ async def upd(message: Message, state: FSMContext):
         await message.answer('Вы не под администратором')
 
 
-@router.message(UpdPassword.newpass)
+@router.message(UpdPassword.newpass, F.text)
 async def new_password(message: Message, state: FSMContext):
     """Изменение пароля"""
     global base
@@ -355,9 +350,6 @@ async def start_addres(message: Message, state: FSMContext):
     global base
     if base == 'one':
         await message.answer('Введите адрес')
-        if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-            await message.answer("Принудительно завершён процесс добавление адреса.")
-            await state.clear()
         await state.set_state(Address.adress)
     else:
         await message.answer('Вы не под администратором')
@@ -367,31 +359,35 @@ async def start_addres(message: Message, state: FSMContext):
 @router.message(Address.adress, F.text)
 async def addres(message: Message, state: FSMContext):
     await state.update_data(addres=message.text)
-    await message.answer('Введите название')
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс добавление адреса.")
         await state.clear()
-    await state.set_state(Address.name_place)
+    else:
+        await message.answer('Введите название')
+        await state.set_state(Address.name_place)
 
 #Для сообщения
 @router.message(Address.name_place, F.text)
 async def name_place(message: Message, state: FSMContext):
     await state.update_data(name_place=message.text)
-    await message.answer('Введите сообщение к заведению.')
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс добавление адреса.")
         await state.clear()
-    await state.set_state(Address.messages)
+    else:
+        await message.answer('Введите сообщение к заведению.')
+        await state.set_state(Address.messages)
+
 
 
 @router.message(Address.messages, F.text)
 async def messages(message: Message, state: FSMContext):
     await state.update_data(messages=message.text)
-    await message.answer('Введите фото(Через ПК - нужна пометка "с сжатием"):')
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс добавление адреса.")
         await state.clear()
-    await state.set_state(Address.photo)
+    else:
+        await message.answer('Введите фото(Через ПК - нужна пометка "с сжатием"):')
+        await state.set_state(Address.photo)
 
 #Добавление фото
 @router.message(Address.photo)
@@ -431,16 +427,17 @@ async def photos(message: Message, state: FSMContext):
         # Очищаем состояние
         await state.clear()
     else:
-        await message.answer('Это не фото')
+        if message.text.lower() == 'stop':
+            await message.answer('Принуди   тельное завершение добавления места')
+            await state.clear()
+        else:
+            await message.answer('Это не фото')
 
 #Удаление места
 @router.message(Command('Remove_place'))
 async def remove_place(message: Message, state: FSMContext):
     """Удаление мест"""
     if base == 'one':
-        if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-            await message.answer("Принудительно завершён процесс удаления мест.")
-            await state.clear()
         await message.answer('*ВНИМАНИЕ! Вы удаляете по конкретному месту, а не по адресу*\nА также приложен список мест'
                              '\nВведите место:', parse_mode='Markdown')
         mesage = await place_for(message)
@@ -456,25 +453,24 @@ async def remove_place(message: Message, state: FSMContext):
         await message.answer('Вы не под администратором')
 
 #Удаление по месту
-@router.message(remove_p_a.place)
+@router.message(remove_p_a.place, F.text)
 async def remove_places(message: Message, state: FSMContext):
-
-    await state.update_data(place=message.text)
-    try:
-        await sqlbase.execute_query('''DELETE FROM message WHERE place = $1 ''', (message.text,))
-        await message.answer('Успешно удалено')
+    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+        await message.answer("Принудительно завершён процесс удаления адресов.")
         await state.clear()
-
-    except Exception as e:
-        await message.answer(f"Произошла ошибка: {str(e)}")
+    else:
+        await state.update_data(place=message.text)
+        try:
+            await sqlbase.execute_query('''DELETE FROM message WHERE place = $1 ''', (message.text,))
+            await message.answer('Успешно удалено')
+            await state.clear()
+        except Exception as e:
+            await message.answer(f"Произошла ошибка: {str(e)}")
 
 #Удаление по адресу
-@router.message(Command('Remove_address'))
+@router.message(Command('Remove_address'), F.text)
 async def remove_place(message: Message, state: FSMContext):
     if base == 'one':
-        if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-            await message.answer("Принудительно завершён процесс удаления адресов.")
-            await state.clear()
         await message.answer('*ВНИМАНИЕ! Вы удаляете по конкретному адресу - это означает, что все места этим адресом удалятся*\nА также приложен список мест'
                              '\nВведите место:', parse_mode='Markdown')
         address = await address_for(message)
@@ -487,52 +483,58 @@ async def remove_place(message: Message, state: FSMContext):
     else:
         await message.answer('Вы не под администратором')
 
-@router.message(remove_p_a.address)
+@router.message(remove_p_a.address, F.text)
 async def remove_places(message: Message, state: FSMContext):
+    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+        await message.answer("Принудительно завершён процесс удаления адресов.")
+        await state.clear()
+    else:
+        await state.update_data(address=message.text)
 
-    await state.update_data(address=message.text)
-
-    await sqlbase.execute_query('''DELETE FROM message WHERE address = $1''', (message.text, ))
-    await message.answer('Успешно удалено')
-    await state.clear()
+        await sqlbase.execute_query('''DELETE FROM message WHERE address = $1''', (message.text, ))
+        await message.answer('Успешно удалено')
+        await state.clear()
 
 #Получение QR-кода
 @router.message(Command('Qr'))
 async def qr(message: Message, state: FSMContext):
     if base == 'one':
-        if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-            await message.answer("Принудительно завершён процесс создания QR.")
-            await state.clear()
         await message.answer('Напишите название(Возможно любое)')
         await state.set_state(Qr_r.name)
     else:
         await message.answer('Вы не под администратором')
 
 
-@router.message(Qr_r.name)
+@router.message(Qr_r.name, F.text)
 async def name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await send_deep_links(message)
-    await message.answer('Скопируйте ссылку для которой нужен QR и отправьте её боту')
-    if message.text.lower() == 'Stop':  # Проверяем, завершил ли пользователь процесс
+    print('Ожидание')
+    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс создания QR.")
         await state.clear()
-    await state.set_state(Qr_r.url)
+    else:
+        print('Ожидание_over')
 
-@router.message(Qr_r.url)
+        await state.update_data(name=message.text)
+        await send_deep_links(message)
+        await message.answer('Скопируйте ссылку для которой нужен QR и отправьте её боту')
+
+        await state.set_state(Qr_r.url)
+
+@router.message(Qr_r.url, F.text)
 async def qr(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс создание QR.")
         await state.clear()
-    await state.update_data(url=message.text)
-    data = await state.get_data()
-    qr_image = qrcode.make(data['url'])
-    file_name = f"{data['name']}.png"
-    qr_image.save(file_name)
+    else:
+        await state.update_data(url=message.text)
+        data = await state.get_data()
+        qr_image = qrcode.make(data['url'])
+        file_name = f"{data['name']}.png"
+        qr_image.save(file_name)
 
-    await message.answer_photo(photo=FSInputFile(file_name), caption=f"Вот ваш QR для {data['name']}")
-    os.remove(file_name)
-    await state.clear()
+        await message.answer_photo(photo=FSInputFile(file_name), caption=f"Вот ваш QR для {data['name']}")
+        os.remove(file_name)
+        await state.clear()
 
 @router.message(Command('New_name'))
 async def review(message: Message, state: FSMContext):
@@ -540,66 +542,67 @@ async def review(message: Message, state: FSMContext):
     if base == 'one':
         await message.answer('Напишите имя бота')
         await state.set_state(Name_bot.name)
-        if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-            await message.answer("Принудительно завершён процесс изменения имени.")
-            await state.clear()
+
     else:
         await message.answer('Вы не под администратором')
 
-@router.message(Name_bot.name)
+@router.message(Name_bot.name, F.text)
 async def name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    data = await state.get_data()
-    await sqlbase.connect()
-    await sqlbase.execute_query('''UPDATE adm SET name_bot = $1''', (data['name'],))
-    await sqlbase.close()
-    await message.answer('Имя перезаписано')
+    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+        await message.answer("Принудительно завершён процесс изменения имени бота.")
+        await state.clear()
+    else:
+        await state.update_data(name=message.text)
+        data = await state.get_data()
+        await sqlbase.connect()
+        await sqlbase.execute_query('''UPDATE adm SET name_bot = $1''', (data['name'],))
+        await sqlbase.close()
+        await message.answer('Имя перезаписано')
 
-import os
-import matplotlib.pyplot as plt
-from uuid import uuid4
-
-@router.message(Command('review'))
+@router.message(Command('Review'))
 async def review(message: Message):
-    await sqlbase.connect()
+    if base == 'one':
 
-    # Генерация уникального идентификатора для файла
-    uuid = uuid4().hex  # Преобразуем UUID в строку для использования в имени файла
+        await sqlbase.connect()
 
-    # Запрос к БД для получения данных
-    data = await sqlbase.execute_query("""
-        SELECT 
-            DATE_TRUNC('hour', data_times::TIMESTAMP) AS hour,
-            AVG(rating) AS average_rating
-        FROM servers
-        WHERE data_times::TIMESTAMP >= NOW() - INTERVAL '24 hours'
-        GROUP BY hour
-        ORDER BY hour;
-    """)
+        # Генерация уникального идентификатора для файла
+        uuid = uuid4().hex  # Преобразуем UUID в строку для использования в имени файла
 
-    # Обработка данных
-    hours = [row['hour'] for row in data]
-    avg_ratings = [row['average_rating'] for row in data]
+        data = await sqlbase.execute_query("""
+            SELECT 
+                DATE_TRUNC('hour', data_times::TIMESTAMP) AS hour,
+                AVG(rating) AS average_rating
+            FROM servers
+            WHERE data_times::TIMESTAMP >= NOW() - INTERVAL '24 hours'
+            GROUP BY hour
+            ORDER BY hour;
+        """)
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(hours, avg_ratings, width=0.03)  # Уменьшаем ширину столбцов
+        # Обработка данных
+        hours = [row['hour'] for row in data]
+        avg_ratings = [row['average_rating'] for row in data]
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(hours, avg_ratings, width=0.03)
 
 
-    # Настраиваем оси и подписи
-    plt.xlabel('Дата')
-    plt.ylabel('Оценка')
-    plt.title('Средняя оценка по часам за последние 24 часа')
-    plt.xticks(rotation=45)
-    # Сохраняем график в файл
-    file_name = f'{uuid}.png'
-    plt.tight_layout()
-    plt.savefig(file_name)  # Сохраняем изображение в файл
-    photo = FSInputFile(f'{uuid}.png')
-    await message.answer_photo(photo)
-    # Получаем ID пользователя
-    os.remove(f'{uuid}.png')
-    # Закрытие соединения с БД
-    await sqlbase.close()
+        # Настраиваем оси и подписи
+        plt.xlabel('Дата')
+        plt.ylabel('Оценка')
+        plt.title('Средняя оценка по часам за последние 24 часа')
+        plt.xticks(rotation=45)
+        # Сохраняем график в файл
+        file_name = f'{uuid}.png'
+        plt.tight_layout()
+        plt.savefig(file_name)  # Сохраняем изображение в файл
+        photo = FSInputFile(f'{uuid}.png')
+        await message.answer_photo(photo)
+        # Получаем ID пользователя
+        os.remove(f'{uuid}.png')
+        # Закрытие соединения с БД
+        await sqlbase.close()
+    else:
+        await message.answer('Вы не под администратором')
 
 @router.message(Command(commands=["Generate_links"]))
 async def send_deep(message: Message):
@@ -627,9 +630,13 @@ async def help(message: Message):
                          '/Adds_address - добавить новое место\n'
                          '/Remove_address - удалить все места с определённым адресом\n'
                          '/Remove_place - удалить какое-либо место\n'
-                         '/Remove_place - удалить какое-либо место\n'
                          '/Qr - создание QR-кода для заведений\n'
-                         '/Generate_links - для получения ссылок\n\n'
+                         '/Generate_links - для получения ссылок\n'
+                         '/Review - Посмотреть почасовые средние оценки за 24 часа\n\n'
                          'P.S Отправка уведомлений каждые 60 секунд.'
                          'Не забывайте выключать сообщения во время процесса администрирования\n'
                          'Не забудьте выйти из администратора.')
+
+@router.message(~F.text)
+async def not_f(message: Message):
+    await message.answer('Это не текст')
