@@ -3,7 +3,7 @@ import asyncio
 import os
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 
 from handlers.starts import start_cmd
@@ -14,16 +14,12 @@ from handlers import adminstration_handlers
 
 logging.basicConfig(level=logging.INFO)
 
-# load_dotenv()
+load_dotenv()
 bot = Bot(token=os.getenv('API_KEY'))
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)
 
 sqlbase = Sqlbase()
-
-
-async def conn():
-    await sqlbase.connect()
 
 
 @dp.message(CommandStart())
@@ -56,15 +52,17 @@ async def stop_message(message: Message):
     else:
         await message.answer('Задача не была запущена.')
 
+@dp.message(Command('Userid'))
+async def user_idd(message: Message):
+    await message.answer(f'ID вашего профиля в телеграм: {message.from_user.id}')
+
 
 async def main():
     try:
-        await conn()  # Подключение к БД
+        await sqlbase.connect()  # Подключение к БД
         x1 = await sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'adm')")
-        print(x1)
         if str(x1) in '[<Record exists=False>]':
-            print('найс')
             await sqlbase.execute_query('''
                 CREATE TABLE IF NOT EXISTS adm (
                     Id SERIAL PRIMARY KEY,
@@ -78,14 +76,24 @@ async def main():
                     adm_8 TEXT, 
                     adm_9 TEXT,
                     adm_10 TEXT,
-                    id_back INT,
+                    id_back1 INTEGER,
+                    id_back2 INTEGER, 
+                    id_back3 INTEGER, 
+                    id_back4 INTEGER, 
+                    id_back5 INTEGER, 
+                    id_back6 INTEGER, 
+                    id_back7 INTEGER, 
+                    id_back8 INTEGER, 
+                    id_back9 INTEGER,
+                    id_back10 INTEGER,
                     name TEXT, 
                     password TEXT,
                     name_bot TEXT);
             ''')
             await sqlbase.execute_query('''
-            INSERT INTO adm (id_back, name, password)
-            VALUES ($1, $2, $3)''', (0, '12345', '12345'))
+            INSERT INTO adm (id_back1, id_back2, id_back3, id_back4, id_back5, id_back6, id_back7, id_back8, id_back9,
+            id_back10, name, password)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)''', (0, 0, 0, 0, 0 , 0, 0, 0, 0, 0 ,'12345', '12345'))
         x2 = await sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'message')")
 

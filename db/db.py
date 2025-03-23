@@ -3,10 +3,9 @@ import asyncpg
 import os
 from dotenv import load_dotenv
 
-load_dotenv = load_dotenv()
-
+load_dotenv()
 # Загружаем переменные из .env
-database = os.getenv('database')
+database = os.getenv('DATABASE')
 
 user = os.getenv('PG_user')
 password = os.getenv('PG_password')
@@ -53,7 +52,7 @@ class Sqlbase:
         query = '''
             CREATE TABLE IF NOT EXISTS servers (
                 Id SERIAL PRIMARY KEY,
-                data_times TIMESTAMP,
+                data_times TEXT,
                 address TEXT,
                 place TEXT,
                 id_user TEXT,

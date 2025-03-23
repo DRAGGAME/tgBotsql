@@ -9,19 +9,19 @@ from apscheduler.triggers.interval import IntervalTrigger
 from transliterate import translit
 import qrcode
 from jobsadd.jobadd import scheduler
-from aiogram import Router, F, Bot, types
+from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, FSInputFile
 from psycopg2 import Error
 from db.db import Sqlbase
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 from handlers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG)
-# load_dotenv()
+load_dotenv()
 sqlbase = Sqlbase()
 
 base = None
@@ -112,7 +112,6 @@ async def send_deep_links(message: Message):
     # Генерируем ссылки для каждого места с транслитерацией
     links = []
     for place in places:
-        print(place)
         deep_link = await generate_deep_link(place)
         links.append(f"{place}: {deep_link}")
 
@@ -123,7 +122,7 @@ async def send_deep_links(message: Message):
         await message.answer("Нет доступных мест для генерации ссылок.")
 
 #Получение мест
-async def place_for(message: Message):
+async def place_for():
     await sqlbase.connect()
 
     place = await sqlbase.execute_query('SELECT place FROM message')
@@ -131,7 +130,7 @@ async def place_for(message: Message):
     return first
 
 #Получение адресов
-async def address_for(message: Message):
+async def address_for():
     await sqlbase.connect()
 
     place = await sqlbase.execute_query('SELECT address FROM message')
@@ -164,7 +163,8 @@ async def login(message: Message, state: FSMContext):
     namen, passwords = names[0]
     await state.update_data(namen=namen, passwords=passwords)
 
-    await message.answer('Введите логин:')
+    await message.answer('*ВНИМАНИЕ*, в аккаунт администратора, может зайти *ТОЛЬКО* один человек\n\nВведите логин:'
+                         , parse_mode='MARKDOWN')
     await state.set_state(LoginState.name)
 
 
@@ -179,10 +179,10 @@ async def name(message: Message, state: FSMContext):
         return
 
     if message.text == namen:
-        await message.answer('Имя - правильное\nВведите пароль:')
+        await message.answer('Логин - правильный.\nВведите пароль:')
         await state.set_state(LoginState.password)
     else:
-        await message.answer('Имя не правильное. Введите правильно')
+        await message.answer('Логин не правильный. Введите правильно')
 
 
 @router.message(LoginState.password, F.text)
@@ -193,7 +193,9 @@ async def password(message: Message, state: FSMContext):
     if message.text == passwords:
         await message.answer('Пароль - правильный\nТеперь у вас права администратора')
         global base
-        base = 'one'
+        ids = message.from_user.id
+        base = f'{ids}one'
+
         await state.clear()
     elif message.text.lower() == 'stop':
         await message.answer('Вход завершён принудительно')
@@ -204,23 +206,28 @@ async def password(message: Message, state: FSMContext):
 #Добавление админов
 @router.message(Command('AddsAdmins'))
 async def AddsAdmins(message: Message, state: FSMContext):
-    """Добалвние админов"""
+    """Добавление админов"""
     global base
     await sqlbase.connect()
-
-    if base == 'one':
-        await message.answer('Внимание! Заранее подготовьте id пользователей, чтобы их найти, вы должны зайти в продвинутые '
-                             'Настройки -> Продвинутые настройки -> Экспериментальные настройки -> '
-                             'И включить Show Peer IDs in Profile, после в каждом профиле есть id, вы должны вставить свой '
-                             'id и других, даже если они были до этого. Вводите данные очерёдностью, как только вы ввели все данные'
-                             'напишите "Stop"\n\n'
+    ids = message.from_user.id
+    if base == f'{ids}one':
+        await message.answer('Внимание! Заранее подготовьте id пользователей, чтобы их получить. Вы должны прописать '
+                             'команду /Userid в этом боте - так вы получите свой id, другие люди должны повторить это действие '
+                             'и прислать вам свой id\n'
+                             'После, вы добавляете эти Id, даже если они были добавлены до этого.'
+                             'Вводите данные по очереди, при этом, если было заполнено 9 админов, но обновили вы 4-ёх, '
+                             'то будут обновлены только 4 админа, оставшиеся останутся, '
+                             'чтобы их убрать напишите после добавленных id "Нет", чтобы их перезаписать,'
+                             ' когда вы всё закончили -'
+                             ' напишите "Stop"\n\n'
                              'Имейтe в виду, что максимум 10 пользователей. При этом можно добавить '
-                             'нового пользователя, обновить данные, можно только под логином и паролем админа.')
+                             'нового пользователя, обновить данные, можно только под аккаунтом администратора.')
         scheduler.shutdown()
 
         await state.set_state(Admins.adm)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 @router.message(Admins.adm, F.text)
 async def AddAdmin(message: Message, state: FSMContext):
@@ -235,7 +242,7 @@ async def AddAdmin(message: Message, state: FSMContext):
 
         for count, row in enumerate(rows[0]): #Создание шедулера
             if row not in (None, 'Нет', 'None', 'нет'):
-                scheduler.add_job(start_cmd, IntervalTrigger(seconds=5), args=(row, count), id=str(row))
+                scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), args=(row, count), id=str(row))
 
         # Стартуем шедулер, задача будет активна по умолчанию
         scheduler.start()
@@ -256,7 +263,7 @@ async def AddAdmin(message: Message, state: FSMContext):
     # Обновляем базу данных
     try:
         query = f"UPDATE adm SET {column_name} = $1 WHERE id = 1;"
-        await sqlbase.execute_query(query, params=(message.text,))
+        await sqlbase.execute_query(query, params=(message.text.lower(),))
 
         # Обновляем состояние
         await state.update_data(current_count=current_count + 1)
@@ -270,11 +277,14 @@ async def AddAdmin(message: Message, state: FSMContext):
 async def upd(message: Message, state: FSMContext):
     """Обновление логина"""
     global base
-    if base == 'one':  # Проверяем права
+    ids = message.from_user.id
+    if base == f'{ids}one':
+      # Проверяем права
         await message.answer('Введите новый логин')
         await state.set_state(UpdLogin.newlog)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 @router.message(UpdLogin.newlog, F.text)
 async def newlogs(message: Message, state: FSMContext):
@@ -298,7 +308,7 @@ async def newlogs(message: Message, state: FSMContext):
             await sqlbase.execute_query(query, params=(altnewlog,))
             await message.answer('Логин успешно обновлён!')
             global base
-            base = 'too'  # Обновляем переменную состояния
+            base = '0'  # Обновляем переменную состояния
             await state.clear()
         else:  # Если логины не совпадают
             await message.answer('Логины не совпадают. Повторите ввод нового логина.')
@@ -312,7 +322,8 @@ async def upd(message: Message, state: FSMContext):
         await message.answer('Введите новый пароль')
         await state.set_state(UpdPassword.newpass)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 
 @router.message(UpdPassword.newpass, F.text)
@@ -348,11 +359,14 @@ async def new_password(message: Message, state: FSMContext):
 @router.message(Command('Adds_address'))
 async def start_addres(message: Message, state: FSMContext):
     global base
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
+
         await message.answer('Введите адрес')
         await state.set_state(Address.adress)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 
 #Для названия
@@ -437,10 +451,12 @@ async def photos(message: Message, state: FSMContext):
 @router.message(Command('Remove_place'))
 async def remove_place(message: Message, state: FSMContext):
     """Удаление мест"""
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
+
         await message.answer('*ВНИМАНИЕ! Вы удаляете по конкретному месту, а не по адресу*\nА также приложен список мест'
                              '\nВведите место:', parse_mode='Markdown')
-        mesage = await place_for(message)
+        mesage = await place_for()
         mesage = str(mesage)
         #Убираем лишние знаки
         mesage = mesage.replace('{', '')
@@ -450,7 +466,8 @@ async def remove_place(message: Message, state: FSMContext):
         await message.answer(f'Вот все названия заведений: {mesage}' )
         await state.set_state(remove_p_a.place)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 #Удаление по месту
 @router.message(remove_p_a.place, F.text)
@@ -470,10 +487,13 @@ async def remove_places(message: Message, state: FSMContext):
 #Удаление по адресу
 @router.message(Command('Remove_address'), F.text)
 async def remove_place(message: Message, state: FSMContext):
-    if base == 'one':
-        await message.answer('*ВНИМАНИЕ! Вы удаляете по конкретному адресу - это означает, что все места этим адресом удалятся*\nА также приложен список мест'
+    ids = message.from_user.id
+    if base == f'{ids}one':
+
+        await message.answer('*ВНИМАНИЕ! Вы удаляете по конкретному адресу - это означает, что все места '
+                             'этим адресом удалятся*\nКакое вы хотите удалить место из приложенного списка мест'
                              '\nВведите место:', parse_mode='Markdown')
-        address = await address_for(message)
+        address = await address_for()
         mesage = str(address)
         mesage = mesage.replace('{', '')
         mesage = mesage.replace('}', '')
@@ -481,7 +501,8 @@ async def remove_place(message: Message, state: FSMContext):
         await message.answer(f'Вот все названия заведений: {mesage}' )
         await state.set_state(remove_p_a.address)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 @router.message(remove_p_a.address, F.text)
 async def remove_places(message: Message, state: FSMContext):
@@ -502,18 +523,16 @@ async def qr(message: Message, state: FSMContext):
         await message.answer('Напишите название(Возможно любое)')
         await state.set_state(Qr_r.name)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 
 @router.message(Qr_r.name, F.text)
 async def name(message: Message, state: FSMContext):
-    print('Ожидание')
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс создания QR.")
         await state.clear()
     else:
-        print('Ожидание_over')
-
         await state.update_data(name=message.text)
         await send_deep_links(message)
         await message.answer('Скопируйте ссылку для которой нужен QR и отправьте её боту')
@@ -537,14 +556,17 @@ async def qr(message: Message, state: FSMContext):
         await state.clear()
 
 @router.message(Command('New_name'))
-async def review(message: Message, state: FSMContext):
+async def new_name(message: Message, state: FSMContext):
     """Обновление имени бота"""
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
+
         await message.answer('Напишите имя бота')
         await state.set_state(Name_bot.name)
 
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 @router.message(Name_bot.name, F.text)
 async def name(message: Message, state: FSMContext):
@@ -561,12 +583,14 @@ async def name(message: Message, state: FSMContext):
 
 @router.message(Command('Review'))
 async def review(message: Message):
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
+
 
         await sqlbase.connect()
 
-        # Генерация уникального идентификатора для файла
-        uuid = uuid4().hex  # Преобразуем UUID в строку для использования в имени файла
+
+        uuid = uuid4().hex
 
         data = await sqlbase.execute_query("""
             SELECT 
@@ -579,63 +603,76 @@ async def review(message: Message):
         """)
 
         # Обработка данных
-        hours = [row['hour'] for row in data]
+        hours = [str(row['hour']).strip() for row in data]
         avg_ratings = [row['average_rating'] for row in data]
 
         plt.figure(figsize=(10, 6))
-        plt.bar(hours, avg_ratings, width=0.03)
+        plt.bar(hours, avg_ratings, width=0.3)
 
-
-        # Настраиваем оси и подписи
+        # Настройка осей и подписей
         plt.xlabel('Дата')
         plt.ylabel('Оценка')
         plt.title('Средняя оценка по часам за последние 24 часа')
+        plt.ylim(0, 5)
         plt.xticks(rotation=45)
+
         # Сохраняем график в файл
         file_name = f'{uuid}.png'
         plt.tight_layout()
         plt.savefig(file_name)  # Сохраняем изображение в файл
+
         photo = FSInputFile(f'{uuid}.png')
         await message.answer_photo(photo)
-        # Получаем ID пользователя
+
+        # Удаление файла
         os.remove(f'{uuid}.png')
+
         # Закрытие соединения с БД
         await sqlbase.close()
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 @router.message(Command(commands=["Generate_links"]))
 async def send_deep(message: Message):
     """Генерация чисто ссылок"""
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
+
         await send_deep_links(message)
     else:
-        await message.answer('Вы не под администратором')
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 
 #Для помощи
 @router.message(Command('help'))
 async def help(message: Message):
     await message.answer('Команды без использования админских прав:\n'
-                         '/StartMessage - Запустить отправку сообщений(по умолчанию)\n'
-                         '/StopMessage - Остановить отправку сообщений\n\n'
-                         'Команды с использованием админских прав\n'
+                         '/StartMessage - запустить отправку сообщений(по умолчанию)\n'
+                         '/StopMessage - остановить отправку сообщений\n'
                          '/Login - для входа под ролью администратора(Работать под админом, может только один человек)\n'
+                         '/Userid - позволяет любому пользователю узнать свой id\n\n'
+
+                         'Команды с использованием админских прав\n'
                          'Stop - остановка любого процесса(Как сообщение)\n'
                          'Exit - выход из админа, предварительно завершив процесс(Как сообщение)\n'
                          '/UpdLogin - изменить логин\n'
                          '/UpdPassword - изменить пароль\n'
                          '/AddsAdmins - добавить админов\n'
-                         '/New_name - Изменить имя клиентского бота(нужно для осуществления работы ссылок ботов и QR-кодов, работающих на основе ссылок\n'
+                         '/New_name - изменить имя клиентского бота(нужно для осуществления работы ссылок '
+                         'ботов и QR-кодов, работающих на основе ссылок\n'
                          '/Adds_address - добавить новое место\n'
                          '/Remove_address - удалить все места с определённым адресом\n'
                          '/Remove_place - удалить какое-либо место\n'
-                         '/Qr - создание QR-кода для заведений\n'
-                         '/Generate_links - для получения ссылок\n'
-                         '/Review - Посмотреть почасовые средние оценки за 24 часа\n\n'
+                         '/Qr - создание QR-кода для заведения\n'
+                         '/Review - Посмотреть почасовые средние оценки за 24 часа\n'
+                         '/Generate_links - для получения ссылок\n\n'
                          'P.S Отправка уведомлений каждые 60 секунд.'
                          'Не забывайте выключать сообщения во время процесса администрирования\n'
-                         'Не забудьте выйти из администратора.')
+                         'Не забудьте выйти из администратора. Администратор может быть только один. В случае, если'
+                         'два человека начнут входить аккаунт администратора, то последний, кто вошёл, и будет '
+                         'администратором. Это сделано в целях безопасности.')
 
 @router.message(~F.text)
 async def not_f(message: Message):
