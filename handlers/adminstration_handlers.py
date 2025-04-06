@@ -19,7 +19,7 @@ from aiogram.types import Message, FSInputFile
 from psycopg2 import Error
 from db.db import Sqlbase
 from dotenv import load_dotenv
-
+from handlers.shedulers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
