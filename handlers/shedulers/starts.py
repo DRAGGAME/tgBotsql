@@ -6,6 +6,7 @@ from config import PG_user
 from db.db import Sqlbase
 bot = Bot(token=os.getenv('API_KEY'))
 sqlbase = Sqlbase()
+
 async def start_cmd(adm: str, count: int):
     await sqlbase.connect()
     id_back = await sqlbase.execute_query(f"SELECT id_back1, id_back2, id_back3, id_back4, id_back5, id_back6, id_back7, id_back8, id_back9, id_back10 FROM adm ORDER BY id DESC LIMIT 1;")
@@ -24,7 +25,7 @@ async def start_cmd(adm: str, count: int):
     for row in rows:
         message = (f"Дата: {row[1]}\n"
                    f"Место: {row[2]}\n"
-                   f"Пользователь(id): {row[3]}\n"
+                   f"Пользователь: {row[3]}\n"
                    f"Рейтинг: {row[4]}\n"
                    f"Отзыв: {row[5]}")
         await bot.send_message(chat_id=adm, text=message)

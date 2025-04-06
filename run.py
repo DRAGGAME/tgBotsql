@@ -2,24 +2,31 @@ import logging
 import asyncio
 import os
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
-
-from handlers.starts import start_cmd
+from handlers.shedulers.backid import back_id
+from handlers.shedulers.starts import start_cmd
 from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from db.db import Sqlbase
 from handlers import adminstration_handlers
 
 logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.WARNING)
 
-load_dotenv()
+# load_dotenv()
 bot = Bot(token=os.getenv('API_KEY'))
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)
 
 sqlbase = Sqlbase()
+
+
+class Admins(StatesGroup):
+    adms = State()
 
 
 @dp.message(CommandStart())
@@ -30,15 +37,23 @@ async def start(message: Message):
 @dp.message(Command('StartMessage'))
 async def start_message(message: Message):
     id_user = message.from_user.id
-    job = scheduler.get_job(str(id_user))
+    await sqlbase.connect()
+    users = await sqlbase.execute_query('''SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id ASC''')
+    for user_id in users[0]:
+        if str(id_user) == user_id:
+            job = scheduler.get_job(str(id_user))
 
-    if not job:
-        # Если задача не была добавлена, добавляем её
-        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(id_user))
+            if not job:
+                # Если задача не была добавлена, добавляем её
+                scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(id_user))
 
-    # Включаем задачу
-    scheduler.resume_job(str(id_user))
-    await message.answer('Теперь сообщения будут доставляться вам')
+            # Включаем задачу
+            scheduler.resume_job(str(id_user))
+            await message.answer('Теперь сообщения будут доставляться вам')
+            break
+        else:
+            await message.answer('Вас нет в списках администраторов')
+            break
 
 
 @dp.message(Command('StopMessage'))
@@ -104,8 +119,7 @@ async def main():
                     address TEXT,
                     message TEXT,
                     photo BYTEA,
-                    place TEXT,
-                    place_t TEXT);'''
+                    place TEXT);'''
             await sqlbase.execute_query(query)
         x3 = await sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'servers')")
@@ -117,10 +131,10 @@ async def main():
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
         for count, row in enumerate(rows[0]):
-            if row not in (None, 'Нет', 'None'):
+            if row not in (None, 'Нет', 'None', 'нет'):
                 scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), args=(str(row), count), id=str(row))
-
-        scheduler.start()  # Запускаем шедулер
+        scheduler.add_job(back_id, IntervalTrigger(minutes=30, seconds=15), id='back_id')
+        scheduler.start()  # Стартуем все шедулеры
         await dp.start_polling(bot)  # Запускаем бота
     finally:
         await sqlbase.close()  # Закрываем соединение с БД

@@ -1,9 +1,8 @@
-import asyncio
 import asyncpg
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
-load_dotenv()
+# load_dotenv()
 # Загружаем переменные из .env
 database = os.getenv('DATABASE')
 
@@ -62,27 +61,13 @@ class Sqlbase:
         '''
         await self.execute_query(query)
 
-    async def ins(self, address, message, photo, place, place_t):
+    async def ins(self, address, message, photo, place):
         query = '''
-            INSERT INTO message (address, message, photo, place, place_t)
-            VALUES ($1, $2, $3, $4, $5);
+            INSERT INTO message (address, message, photo, place)
+            VALUES ($1, $2, $3, $4);
         '''
-        await self.execute_query(query, (address, message, photo, place, place_t))
-
-    async def delete(self):
-        query = "DROP TABLE IF EXISTS servers;"
-        await self.execute_query(query)
+        await self.execute_query(query, (address, message, photo, place))
 
 
-if __name__ == '__main__':
-    sqlbase = Sqlbase()
 
-    async def main():
-        print(f"user: {user}, password: {password}, ip: {ip}, database: {database}")
-        try:
-            await sqlbase.spaltenerstellen()
-            print("Таблица успешно создана.")
-        finally:
-            await sqlbase.close()
 
-    asyncio.run(main())

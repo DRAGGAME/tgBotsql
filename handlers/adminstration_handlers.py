@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from uuid import uuid4
 from PIL import Image
 from apscheduler.triggers.interval import IntervalTrigger
-from transliterate import translit
 import qrcode
 from jobsadd.jobadd import scheduler
 from aiogram import Router, F, Bot
@@ -14,19 +13,22 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, FSInputFile
-from psycopg2 import Error
 from db.db import Sqlbase
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
-from handlers.starts import start_cmd
+from handlers.shedulers.starts import start_cmd
 
-logging.basicConfig(level=logging.DEBUG)
-load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.WARNING)
+
+# load_dotenv()
 sqlbase = Sqlbase()
 
-base = None
+base = '0'
 router = Router()
 bot = Bot(token=os.getenv('API_KEY'), parce_mode='MARKDOWN')
+
 
 class UpdLogin(StatesGroup):
     newlog = State()
@@ -52,70 +54,50 @@ class Address(StatesGroup):
     messages = State()
     photo = State()
 
+
 class Qr_r(StatesGroup):
     name = State()
     url = State()
+
 
 class remove_p_a(StatesGroup):
     address = State()
     place = State()
 
+
 class Name_bot(StatesGroup):
     name = State()
 
 
-#Для транскрипции в ссылках
-def transliterate_text(text):
-    return translit(text, language_code='ru', reversed=True)
-
 #Кодирование
-def encode_data(data):
-    return base64.urlsafe_b64encode(data.encode()).decode()
-
-# Функция декодирования для deep_link
-def decode_data(payload):
-    try:
-        return base64.urlsafe_b64decode(payload.encode()).decode()
-    except Exception:
-        return None
-
+def encode_data(text):
+    return base64.urlsafe_b64encode(text.encode('utf-8')).decode('utf-8')
 
 # Генерация ссылки deep_link для места
 async def generate_deep_link(place_name):
-    transliterated_name = transliterate_text(place_name)  # Транслитерируем место
-    print(transliterated_name)
-    encoded_place = encode_data(transliterated_name)
+    encoded_place = encode_data(place_name)
     # Кодируем место
     bot_username = await sqlbase.execute_query('''SELECT name_bot FROM adm''')
-    bot_username = bot_username[0][0]  # Извлекаем имя бота (первый элемент из результата)
+    bot_username = bot_username[0][0]
 
-    # Если имя бота начинается с '@', убираем только '@'
     if bot_username[0] == '@':
         bot_username = bot_username[1:]
 
-    # Если имя бота заканчивается лишним символом (например, пробелом), удаляем его
-    bot_username = bot_username.rstrip()  # Убираем пробелы и символы в конце
-
-    print(bot_username)  # Выводим очищенное имя бота
-
-    # Предполагаем, что переменная encoded_place определена в другом месте
+    bot_username = bot_username.rstrip()
     return f"https://t.me/{bot_username}?start={encoded_place}"
 
 
 #Создание ссылок
 async def send_deep_links(message: Message):
-        # Получаем список мест из базы
     await sqlbase.connect()
     places = await sqlbase.execute_query("SELECT place FROM message")
     places = [row[0] for row in places]
 
-    # Генерируем ссылки для каждого места с транслитерацией
     links = []
     for place in places:
         deep_link = await generate_deep_link(place)
         links.append(f"{place}: {deep_link}")
 
-    # Отправляем администратору список ссылок
     if links:
         await message.answer("\n\n".join(links))
     else:
@@ -137,29 +119,29 @@ async def address_for():
     first = {row[0] for row in place}
     return first
 
-#Для остановки ЛЮБЫХ процессов
-
 #Для выхода из админа
 @router.message(F.text.lower() == 'exit')
 async def handle_stop(message: Message, state: FSMContext):
     await message.answer("Вы вышли из админа")
     global base
-    base = None
+    base = '0'
     await sqlbase.close()
     await state.clear()
 
 #Для логина
 @router.message(Command('Login'))
 async def login(message: Message, state: FSMContext):
+    global base
+    if base != '0':
+        await message.answer('Аккаунт администратора занят')
+        return
     await sqlbase.connect()
-    # Выполнение запроса для получения имени и пароля
     names = await sqlbase.execute_query('SELECT name, password FROM adm')
 
     if not names:
         await message.answer("Ошибка: данные для входа не найдены.")
         return
 
-    # Сохранение имени и пароля в контексте FSM
     namen, passwords = names[0]
     await state.update_data(namen=namen, passwords=passwords)
 
@@ -269,7 +251,7 @@ async def AddAdmin(message: Message, state: FSMContext):
         await state.update_data(current_count=current_count + 1)
 
         await message.answer(f"ID добавлен в {column_name}. Введите следующий ID или напишите 'Stop'.")
-    except Error as e:
+    except Exception as e:
         await message.answer(f"Произошла ошибка: {str(e)}")
 
 #Изменение логина
@@ -349,7 +331,7 @@ async def new_password(message: Message, state: FSMContext):
             query = 'UPDATE adm SET password = $1 WHERE id = 1;'
             await sqlbase.execute_query(query, params=(altnewpass,))
             await message.answer('Пароль успешно обновлён!')
-            base = 'too'
+            base = '0'
             await state.clear()
         else:  # Если пароли не совпадают
             await message.answer('Пароли не совпадают. Повторите ввод нового пароля.')
@@ -431,7 +413,7 @@ async def photos(message: Message, state: FSMContext):
         data = await state.get_data()
 
         # Сохраняем данные в базу
-        await sqlbase.ins(data['addres'], data['messages'], data['photos'], data['name_place'], transliterate_text(data['name_place']))
+        await sqlbase.ins(data['addres'], data['messages'], data['photos'], data['name_place'])
         # Уведомление пользователя
 
         # Удаляем временный файл
@@ -498,7 +480,7 @@ async def remove_place(message: Message, state: FSMContext):
         mesage = mesage.replace('{', '')
         mesage = mesage.replace('}', '')
         mesage = mesage.replace("'", '')
-        await message.answer(f'Вот все названия заведений: {mesage}' )
+        await message.answer(f'Вот все адреса: {mesage}' )
         await state.set_state(remove_p_a.address)
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
@@ -519,7 +501,8 @@ async def remove_places(message: Message, state: FSMContext):
 #Получение QR-кода
 @router.message(Command('Qr'))
 async def qr(message: Message, state: FSMContext):
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
         await message.answer('Напишите название(Возможно любое)')
         await state.set_state(Qr_r.name)
     else:
@@ -579,17 +562,14 @@ async def name(message: Message, state: FSMContext):
         await sqlbase.connect()
         await sqlbase.execute_query('''UPDATE adm SET name_bot = $1''', (data['name'],))
         await sqlbase.close()
+        await state.clear()
         await message.answer('Имя перезаписано')
 
 @router.message(Command('Review'))
 async def review(message: Message):
     ids = message.from_user.id
     if base == f'{ids}one':
-
-
         await sqlbase.connect()
-
-
         uuid = uuid4().hex
 
         data = await sqlbase.execute_query("""
@@ -601,44 +581,47 @@ async def review(message: Message):
             GROUP BY hour
             ORDER BY hour;
         """)
+        if data:
+            # Обработка данных
+            hours = [str(row['hour']).strip() for row in data]
+            avg_ratings = [row['average_rating'] for row in data]
 
-        # Обработка данных
-        hours = [str(row['hour']).strip() for row in data]
-        avg_ratings = [row['average_rating'] for row in data]
+            plt.figure(figsize=(20, 9))
 
-        plt.figure(figsize=(10, 6))
-        plt.bar(hours, avg_ratings, width=0.3)
+            plt.bar(hours, avg_ratings, width=0.3)
 
-        # Настройка осей и подписей
-        plt.xlabel('Дата')
-        plt.ylabel('Оценка')
-        plt.title('Средняя оценка по часам за последние 24 часа')
-        plt.ylim(0, 5)
-        plt.xticks(rotation=45)
+            # Настройка осей и подписей
+            plt.xlabel('Дата')
+            plt.ylabel('Оценка')
+            plt.title('Средняя оценка по часам за последние 24 часа')
+            plt.ylim(0, 5)
+            plt.xticks(rotation=45)
 
-        # Сохраняем график в файл
-        file_name = f'{uuid}.png'
-        plt.tight_layout()
-        plt.savefig(file_name)  # Сохраняем изображение в файл
+            # Сохраняем график в файл
+            file_name = f'{uuid}.png'
+            plt.tight_layout()
+            plt.savefig(file_name)  # Сохраняем изображение в файл
 
-        photo = FSInputFile(f'{uuid}.png')
-        await message.answer_photo(photo)
+            photo = FSInputFile(f'{uuid}.png')
+            await message.answer_photo(photo)
 
-        # Удаление файла
-        os.remove(f'{uuid}.png')
+            # Удаление файла
+            os.remove(f'{uuid}.png')
 
-        # Закрытие соединения с БД
+            # Закрытие соединения с БД
+        else:
+            await message.answer('''Новых отзывов за последние 24 часа не найдено''')
         await sqlbase.close()
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
                              'администратора')
 
-@router.message(Command(commands=["Generate_links"]))
+
+@router.message(Command("Generate_links"))
 async def send_deep(message: Message):
     """Генерация чисто ссылок"""
     ids = message.from_user.id
     if base == f'{ids}one':
-
         await send_deep_links(message)
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
@@ -670,7 +653,7 @@ async def help(message: Message):
                          '/Generate_links - для получения ссылок\n\n'
                          'P.S Отправка уведомлений каждые 60 секунд.'
                          'Не забывайте выключать сообщения во время процесса администрирования\n'
-                         'Не забудьте выйти из администратора. Администратор может быть только один. В случае, если'
+                         'Не забудьте выйти из администратора. Администратор может быть только один. В случае, если '
                          'два человека начнут входить аккаунт администратора, то последний, кто вошёл, и будет '
                          'администратором. Это сделано в целях безопасности.')
 
