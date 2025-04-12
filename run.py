@@ -6,7 +6,6 @@ from aiogram.types import Message
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 
-from handlers.adminstration_handlers import review
 from handlers.starts import start_cmd
 from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger

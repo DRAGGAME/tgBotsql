@@ -84,19 +84,16 @@ class EditMessage(StatesGroup):
 
 
 #Для транскрипции в ссылках
-def transliterate_text(text):
-    return translit(text, language_code='ru', reversed=True)
 
 #Кодирование
 def encode_data(data):
-    return base64.urlsafe_b64encode(data.encode()).decode()
+
+    return base64.urlsafe_b64encode(data.encode('utf-8')).decode('utf-8')
 
 
 # Генерация ссылки deep_link для места
 async def generate_deep_link(place_name):
-    transliterated_name = transliterate_text(place_name)  # Транслитерируем место
-    print(transliterated_name)
-    encoded_place = encode_data(transliterated_name)
+    encoded_place = encode_data(place_name)
     # Кодируем место
     bot_username = await sqlbase.execute_query('''SELECT name_bot FROM adm''')
     bot_username = bot_username[0][0]  # Извлекаем имя бота (первый элемент из результата)
