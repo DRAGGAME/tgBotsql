@@ -44,7 +44,9 @@ class Sqlbase:
                     if params:
                         return await connection.fetch(query, *params)
                     return await connection.fetch(query)
+
         except asyncpg.PostgresError as e:
+
             print(f"Ошибка выполнения запроса: {e}")
             raise
 

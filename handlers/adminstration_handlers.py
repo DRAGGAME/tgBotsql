@@ -23,7 +23,8 @@ from handlers.shedulers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
-sqlbase = Sqlbase()
+
+base_sqlbase = Sqlbase()
 
 base = None
 router = Router()
@@ -96,7 +97,7 @@ def encode_data(data):
 async def generate_deep_link(place_name):
     encoded_place = encode_data(place_name)
     # Кодируем место
-    bot_username = await sqlbase.execute_query('''SELECT name_bot FROM adm''')
+    bot_username = await base_sqlbase.execute_query('''SELECT name_bot FROM adm''')
     bot_username = bot_username[0][0]  # Извлекаем имя бота (первый элемент из результата)
 
     # Если имя бота начинается с '@', убираем только '@'
@@ -118,8 +119,8 @@ def reset_base():
 #Создание ссылок
 async def send_deep_links(message: Message):
         # Получаем список мест из базы
-    await sqlbase.connect()
-    places = await sqlbase.execute_query("SELECT place FROM message")
+    await base_sqlbase.connect()
+    places = await base_sqlbase.execute_query("SELECT place FROM message")
     places = [row[0] for row in places]
 
     # Генерируем ссылки для каждого места с транслитерацией
@@ -137,7 +138,7 @@ async def send_deep_links(message: Message):
 #Получение мест
 async def place_for():
     dictes = {}
-    place = await sqlbase.execute_query('SELECT place FROM message')
+    place = await base_sqlbase.execute_query('SELECT place FROM message')
     for number, names in enumerate(place):
         print(number+1, names[0])
         dictes[number+1] = names[0]
@@ -145,9 +146,9 @@ async def place_for():
 
 #Получение адресов
 async def address_for():
-    await sqlbase.connect()
+    await base_sqlbase.connect()
 
-    place = await sqlbase.execute_query('SELECT address FROM message')
+    place = await base_sqlbase.execute_query('SELECT address FROM message')
     first = {row[0] for row in place}
     return first
 
@@ -158,15 +159,15 @@ async def handle_stop(message: Message, state: FSMContext):
     await message.answer("Вы вышли из админа")
     global base
     base = None
-    await sqlbase.close()
+    await base_sqlbase.close()
     await state.clear()
 
 #Для логина
 @router.message(Command('Login'))
 async def login(message: Message, state: FSMContext):
-    await sqlbase.connect()
+    await base_sqlbase.connect()
     # Выполнение запроса для получения имени и пароля
-    names = await sqlbase.execute_query('SELECT name, password FROM adm')
+    names = await base_sqlbase.execute_query('SELECT name, password FROM adm')
 
     if not names:
         await message.answer("Ошибка: данные для входа не найдены.")
@@ -225,7 +226,7 @@ async def password(message: Message, state: FSMContext):
 async def adds_admins(message: Message, state: FSMContext):
     """Добавление админов"""
     global base
-    await sqlbase.connect()
+    await base_sqlbase.connect()
     ids = message.from_user.id
     if base == f'{ids}one':
         await message.answer('Внимание! Заранее подготовьте id пользователей, чтобы их получить. Вы должны прописать '
@@ -252,8 +253,8 @@ async def add_admin(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':
         await message.answer("Добавление администраторов завершено.")
         await state.clear()
-        await sqlbase.connect()
-        rows = await sqlbase.execute_query(
+        await base_sqlbase.connect()
+        rows = await base_sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
 
@@ -280,7 +281,7 @@ async def add_admin(message: Message, state: FSMContext):
     # Обновляем базу данных
     try:
         query = f"UPDATE adm SET {column_name} = $1 WHERE id = 1;"
-        await sqlbase.execute_query(query, params=(message.text.lower(),))
+        await base_sqlbase.execute_query(query, params=(message.text.lower(),))
 
         # Обновляем состояние
         await state.update_data(current_count=current_count + 1)
@@ -322,7 +323,7 @@ async def newlogs(message: Message, state: FSMContext):
             await state.clear()
         elif altnewlog == message.text:  # Если логины совпадают
             query = 'UPDATE adm SET name = $1 WHERE id = 1;'
-            await sqlbase.execute_query(query, params=(altnewlog,))
+            await base_sqlbase.execute_query(query, params=(altnewlog,))
             await message.answer('Логин успешно обновлён!')
             global base
             base = '0'  # Обновляем переменную состояния
@@ -364,7 +365,7 @@ async def new_password(message: Message, state: FSMContext):
             await state.clear()
         elif altnewpass == message.text: #При совпадении пароля
             query = 'UPDATE adm SET password = $1 WHERE id = 1;'
-            await sqlbase.execute_query(query, params=(altnewpass,))
+            await base_sqlbase.execute_query(query, params=(altnewpass,))
             await message.answer('Пароль успешно обновлён!')
             base = 'too'
             await state.clear()
@@ -447,19 +448,19 @@ async def photos(message: Message, state: FSMContext):
         if update_photo == 'Update_address:photo':
             data_update = await state.get_data()
             try:
-                await sqlbase.execute_query(f'''UPDATE message SET photo = $1 WHERE place = $2''', (data_update['photos'],
-                                                                                          data_update['value_data'][0][4], ))
+                await base_sqlbase.execute_query(f'''UPDATE message SET photo = $1 WHERE place = $2''', (data_update['photos'],
+                                                                                                         data_update['value_data'][0][4],))
                 await message.reply('Фото успешно перезаписано')
             except Exception as e:
                 await message.reply(f'Ошибка при добавлении фото: {e}')
-            await sqlbase.close()
+            await base_sqlbase.close()
             if os.path.exists(file_name):
                 os.remove(file_name)
             await state.clear()
             return
         else:
             data = await state.get_data()
-            await sqlbase.ins(data['addres'], data['messages'], data['photos'], data['name_place'])
+            await base_sqlbase.ins(data['addres'], data['messages'], data['photos'], data['name_place'])
             # Уведомление пользователя
 
             # Удаляем временный файл
@@ -479,7 +480,7 @@ async def photos(message: Message, state: FSMContext):
 async def update_place(message: Message, state: FSMContext):
     ids = message.from_user.id
     if base == f'{ids}one':
-        await sqlbase.connect()
+        await base_sqlbase.connect()
         n = ""
         mesage = await place_for()
         await state.update_data(local=mesage)
@@ -496,7 +497,7 @@ async def update_address_one(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс изменения мест.")
         await state.clear()
-        await sqlbase.close()
+        await base_sqlbase.close()
     else:
         user_number = ''
         data = await state.get_data()
@@ -509,7 +510,7 @@ async def update_address_one(message: Message, state: FSMContext):
             await state.update_data(place=value_data)
 
             # Извлекаем данные из базы данных по адресу
-            all_update = await sqlbase.execute_query('''SELECT * FROM message WHERE place = $1 ''', (value_data,))
+            all_update = await base_sqlbase.execute_query('''SELECT * FROM message WHERE place = $1 ''', (value_data,))
             await state.update_data(value_data=all_update)
             # Проверяем, что результат существует
             if all_update:
@@ -550,7 +551,7 @@ async def update_address_too(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс изменения мест.")
         await state.clear()
-        await sqlbase.close()
+        await base_sqlbase.close()
     else:
         if message.text.lower() == 'адрес':
             await message.answer('Введите адрес')
@@ -573,43 +574,43 @@ async def update_address_for_address(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс изменения мест.")
         await state.clear()
-        await sqlbase.close()
+        await base_sqlbase.close()
 
     else:
         data = await state.get_data()
-        await sqlbase.execute_query(f'''UPDATE message SET address = $1 WHERE place = $2''', (message.text,
-                                                                                         data['value_data'][0][4], ))
+        await base_sqlbase.execute_query(f'''UPDATE message SET address = $1 WHERE place = $2''', (message.text,
+                                                                                                   data['value_data'][0][4],))
         await message.answer(f'Успешно обновлён адрес в месте - {data['value_data'][0][4]}')
-        await sqlbase.close()
+        await base_sqlbase.close()
 
 @router.message(UpdateAddress.name_place, F.text)
 async def address_name_place(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс изменения мест.")
         await state.clear()
-        await sqlbase.close()
+        await base_sqlbase.close()
 
     else:
         data = await state.get_data()
-        await sqlbase.execute_query(f'''UPDATE message SET place = $1 WHERE place = $2''', (message.text,
-                                                                                         data['value_data'][0][4], ))
+        await base_sqlbase.execute_query(f'''UPDATE message SET place = $1 WHERE place = $2''', (message.text,
+                                                                                                 data['value_data'][0][4],))
 
         await message.answer(f'Успешно обновлёно место в месте - {data['value_data'][0][4]}')
-        await sqlbase.close()
+        await base_sqlbase.close()
 
 @router.message(UpdateAddress.messages, F.text)
 async def address_name_for_message(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс изменения мест.")
         await state.clear()
-        await sqlbase.close()
+        await base_sqlbase.close()
 
     else:
         data = await state.get_data()
-        await sqlbase.execute_query(f'''UPDATE message SET message = $1 WHERE place = $2''', (message.text,
-                                                                                         data['value_data'][0][4], ))
+        await base_sqlbase.execute_query(f'''UPDATE message SET message = $1 WHERE place = $2''', (message.text,
+                                                                                                   data['value_data'][0][4],))
         await message.answer(f'Успешно обновлёно сообщение в месте - {data['value_data'][0][4]} ')
-        await sqlbase.close()
+        await base_sqlbase.close()
 
 #Удаление места
 @router.message(Command('Remove_place'))
@@ -640,7 +641,7 @@ async def remove_places(message: Message, state: FSMContext):
     else:
         await state.update_data(place=message.text)
         try:
-            await sqlbase.execute_query('''DELETE FROM message WHERE place = $1 ''', (message.text,))
+            await base_sqlbase.execute_query('''DELETE FROM message WHERE place = $1 ''', (message.text,))
             await message.answer('Успешно удалено')
             await state.clear()
         except Exception as e:
@@ -674,7 +675,7 @@ async def remove_places(message: Message, state: FSMContext):
     else:
         await state.update_data(address=message.text)
 
-        await sqlbase.execute_query('''DELETE FROM message WHERE address = $1''', (message.text, ))
+        await base_sqlbase.execute_query('''DELETE FROM message WHERE address = $1''', (message.text,))
         await message.answer('Успешно удалено')
         await state.clear()
 
@@ -732,7 +733,7 @@ async def edit_messages(message: Message, state: FSMContext):
 
 @router.message(EditMessage.message)
 async def edit_messages_one(message: Message, state: FSMContext):
-    await sqlbase.connect()
+    await base_sqlbase.connect()
     if message.text.lower() == 'между оценкой и отзывом':
         await state.update_data(one_message=message.text.lower())
         await state.set_state(EditMessage.update_message)
@@ -746,17 +747,17 @@ async def edit_messages_too(message: Message, state: FSMContext):
     await state.update_data(msg=message.text)
     data = await state.get_data()
     if data['one_message'] == 'между оценкой и отзывом':
-        await sqlbase.execute_query(
+        await base_sqlbase.execute_query(
             '''UPDATE static_message SET review_or_rating_message=$1''', (data['msg'], )
         )
         await message.answer('Успешно перезаписано')
 
     elif data['one_message'] == 'после оценки':
-        await sqlbase.execute_query(
+        await base_sqlbase.execute_query(
             '''UPDATE static_message SET review_message=$1''', (data['msg'], )
         )
         await message.answer('Успешно перезаписано')
-    await sqlbase.close()
+    await base_sqlbase.close()
 @router.message(Command('New_name'))
 async def new_name(message: Message, state: FSMContext):
     """Обновление имени бота"""
@@ -778,9 +779,9 @@ async def name(message: Message, state: FSMContext):
     else:
         await state.update_data(name=message.text)
         data = await state.get_data()
-        await sqlbase.connect()
-        await sqlbase.execute_query('''UPDATE adm SET name_bot = $1''', (data['name'],))
-        await sqlbase.close()
+        await base_sqlbase.connect()
+        await base_sqlbase.execute_query('''UPDATE adm SET name_bot = $1''', (data['name'],))
+        await base_sqlbase.close()
         await message.answer('Имя перезаписано')
 
 @router.message(Command('Review'))
@@ -789,12 +790,12 @@ async def review(message: Message):
     if base == f'{ids}one':
 
 
-        await sqlbase.connect()
+        await base_sqlbase.connect()
 
 
         uuid = uuid4().hex
 
-        data = await sqlbase.execute_query("""
+        data = await base_sqlbase.execute_query("""
             SELECT 
                 DATE_TRUNC('hour', data_times::TIMESTAMP) AS hour,
                 AVG(rating) AS average_rating
@@ -830,7 +831,7 @@ async def review(message: Message):
         os.remove(f'{uuid}.png')
 
         # Закрытие соединения с БД
-        await sqlbase.close()
+        await base_sqlbase.close()
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
                              'администратора')

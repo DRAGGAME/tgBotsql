@@ -19,7 +19,7 @@ bot = Bot(token=os.getenv('API_KEY'))
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)
 
-sqlbase = Sqlbase()
+run_sqlbase = Sqlbase()
 
 
 @dp.message(CommandStart())
@@ -59,11 +59,11 @@ async def user_idd(message: Message):
 
 async def main():
     try:
-        await sqlbase.connect()  # Подключение к БД
-        adm = await sqlbase.execute_query(
+        await run_sqlbase.connect()  # Подключение к БД
+        adm = await run_sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'adm')")
         if str(adm) in '[<Record exists=False>]':
-            await sqlbase.execute_query('''
+            await run_sqlbase.execute_query('''
                 CREATE TABLE IF NOT EXISTS adm (
                     Id SERIAL PRIMARY KEY,
                     adm_1 TEXT,
@@ -90,11 +90,11 @@ async def main():
                     password TEXT,
                     name_bot TEXT);
             ''')
-            await sqlbase.execute_query('''
+            await run_sqlbase.execute_query('''
             INSERT INTO adm (id_back1, id_back2, id_back3, id_back4, id_back5, id_back6, id_back7, id_back8, id_back9,
             id_back10, name, password)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)''', (0, 0, 0, 0, 0 , 0, 0, 0, 0, 0 ,'12345', '12345'))
-        message = await sqlbase.execute_query(
+        message = await run_sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'message')")
 
         if str(message) in '[<Record exists=False>]':
@@ -105,14 +105,14 @@ async def main():
                     message TEXT,
                     photo BYTEA,
                     place TEXT);'''
-            await sqlbase.execute_query(query)
-        servers = await sqlbase.execute_query(
+            await run_sqlbase.execute_query(query)
+        servers = await run_sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'servers')")
 
         if str(servers) in '[<Record exists=False>]':
-            await sqlbase.spaltenerstellen()
+            await run_sqlbase.spaltenerstellen()
 
-        static_messages = await sqlbase.execute_query(
+        static_messages = await run_sqlbase.execute_query(
             '''SELECT EXISTS (
                 SELECT FROM information_schema.tables 
                 WHERE table_name = 'static_messages'
@@ -127,23 +127,23 @@ async def main():
                 review_message TEXT
             );'''
 
-            await sqlbase.execute_query(query)
+            await run_sqlbase.execute_query(query)
 
             review_or_rating = 'Оценка принята. Если вы желаете написать отзыв, то напишите "Да", если нет, то "Нет".'
             review_message = 'Напишите, пожалуйста, отзыв'
 
-            await sqlbase.execute_query(
+            await run_sqlbase.execute_query(
                 '''INSERT INTO static_message (review_or_rating_message, review_message) 
                    VALUES ($1, $2)''',
                 (review_or_rating, review_message)
             )
 
-        rows = await sqlbase.execute_query(
+        rows = await run_sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
         for count, row in enumerate(rows[0]):
             if row not in (None, 'Нет', 'None'):
-                scheduler.add_job(start_cmd, IntervalTrigger(seconds=5), args=(str(row), count), id=str(row))
+                scheduler.add_job(start_cmd, IntervalTrigger(seconds=5), args=(str(row), count, run_sqlbase), id=str(row))
 
         scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
