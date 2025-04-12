@@ -2,9 +2,10 @@ import os
 
 from aiogram import Bot
 
-from config import PG_user
+from config import PG_user, api_key
 
-bot = Bot(token=os.getenv('API_KEY'))
+bot = Bot(token=api_key, parce_mode='MARKDOWN')
+
 
 
 async def start_cmd(adm: str, count: int, pool_sqlbase):

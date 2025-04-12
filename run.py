@@ -5,6 +5,8 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
+
+from config import api_key
 from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
 from handlers.shedulers.backid import back_id
 from handlers.shedulers.starts import start_cmd
@@ -16,7 +18,7 @@ from handlers import adminstration_handlers
 logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
-bot = Bot(token=os.getenv('API_KEY'))
+bot = Bot(token=api_key, parce_mode='MARKDOWN')
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)
 

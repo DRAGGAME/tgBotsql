@@ -11,6 +11,7 @@ from PIL import Image
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from config import api_key
 from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
 from handlers.shedulers.backid import back_id
 from jobsadd.jobadd import scheduler
@@ -31,7 +32,7 @@ base_sqlbase = Sqlbase()
 
 base = None
 router = Router()
-bot = Bot(token=os.getenv('API_KEY'), parce_mode='MARKDOWN')
+bot = Bot(token=api_key, parce_mode='MARKDOWN')
 
 class UpdLogin(StatesGroup):
     newlog = State()
