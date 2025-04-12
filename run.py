@@ -2,31 +2,25 @@ import logging
 import asyncio
 import os
 from aiogram.filters import Command, CommandStart
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
-from handlers.shedulers.backid import back_id
-from handlers.shedulers.starts import start_cmd
+
+from handlers.adminstration_handlers import review
+from handlers.starts import start_cmd
 from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from db.db import Sqlbase
 from handlers import adminstration_handlers
 
 logging.basicConfig(level=logging.INFO)
-logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.WARNING)
 
-# load_dotenv()
+load_dotenv()
 bot = Bot(token=os.getenv('API_KEY'))
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)
 
 sqlbase = Sqlbase()
-
-
-class Admins(StatesGroup):
-    adms = State()
 
 
 @dp.message(CommandStart())
@@ -37,23 +31,15 @@ async def start(message: Message):
 @dp.message(Command('StartMessage'))
 async def start_message(message: Message):
     id_user = message.from_user.id
-    await sqlbase.connect()
-    users = await sqlbase.execute_query('''SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id ASC''')
-    for user_id in users[0]:
-        if str(id_user) == user_id:
-            job = scheduler.get_job(str(id_user))
+    job = scheduler.get_job(str(id_user))
 
-            if not job:
-                # Если задача не была добавлена, добавляем её
-                scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(id_user))
+    if not job:
+        # Если задача не была добавлена, добавляем её
+        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(id_user))
 
-            # Включаем задачу
-            scheduler.resume_job(str(id_user))
-            await message.answer('Теперь сообщения будут доставляться вам')
-            break
-        else:
-            await message.answer('Вас нет в списках администраторов')
-            break
+    # Включаем задачу
+    scheduler.resume_job(str(id_user))
+    await message.answer('Теперь сообщения будут доставляться вам')
 
 
 @dp.message(Command('StopMessage'))
@@ -75,9 +61,9 @@ async def user_idd(message: Message):
 async def main():
     try:
         await sqlbase.connect()  # Подключение к БД
-        x1 = await sqlbase.execute_query(
+        adm = await sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'adm')")
-        if str(x1) in '[<Record exists=False>]':
+        if str(adm) in '[<Record exists=False>]':
             await sqlbase.execute_query('''
                 CREATE TABLE IF NOT EXISTS adm (
                     Id SERIAL PRIMARY KEY,
@@ -109,10 +95,10 @@ async def main():
             INSERT INTO adm (id_back1, id_back2, id_back3, id_back4, id_back5, id_back6, id_back7, id_back8, id_back9,
             id_back10, name, password)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)''', (0, 0, 0, 0, 0 , 0, 0, 0, 0, 0 ,'12345', '12345'))
-        x2 = await sqlbase.execute_query(
+        message = await sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'message')")
 
-        if str(x2) in '[<Record exists=False>]':
+        if str(message) in '[<Record exists=False>]':
             query = '''
                 CREATE TABLE IF NOT EXISTS message (
                     Id SERIAL PRIMARY KEY,
@@ -121,24 +107,51 @@ async def main():
                     photo BYTEA,
                     place TEXT);'''
             await sqlbase.execute_query(query)
-        x3 = await sqlbase.execute_query(
+        servers = await sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'servers')")
 
-        if str(x3) in '[<Record exists=False>]':
+        if str(servers) in '[<Record exists=False>]':
             await sqlbase.spaltenerstellen()
+
+        static_messages = await sqlbase.execute_query(
+            '''SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'static_messages'
+            )'''
+        )
+
+        # Проверка, существует ли таблица
+        if str(static_messages) in '[<Record exists=False>]':
+            query = '''CREATE TABLE IF NOT EXISTS static_message (
+                Id SERIAL PRIMARY KEY,
+                review_or_rating_message TEXT, 
+                review_message TEXT
+            );'''
+
+            await sqlbase.execute_query(query)
+
+            review_or_rating = 'Оценка принята. Если вы желаете написать отзыв, то напишите "Да", если нет, то "Нет".'
+            review_message = 'Напишите, пожалуйста, отзыв'
+
+            await sqlbase.execute_query(
+                '''INSERT INTO static_message (review_or_rating_message, review_message) 
+                   VALUES ($1, $2)''',
+                (review_or_rating, review_message)
+            )
 
         rows = await sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
+
         for count, row in enumerate(rows[0]):
-            if row not in (None, 'Нет', 'None', 'нет'):
+            if row not in (None, 'Нет', 'None'):
                 scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), args=(str(row), count), id=str(row))
-        scheduler.add_job(back_id, IntervalTrigger(minutes=30, seconds=15), id='back_id')
-        scheduler.start()  # Стартуем все шедулеры
+
+        # scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
     finally:
         await sqlbase.close()  # Закрываем соединение с БД
-        scheduler.shutdown()  # Останавливаем APScheduler
+        # scheduler.shutdown()  # Останавливаем APScheduler
 
 if __name__ == '__main__':
     try:
