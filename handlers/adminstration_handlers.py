@@ -161,6 +161,7 @@ async def handle_stop(message: Message, state: FSMContext):
     await message.answer("Вы вышли из админа")
     global base
     base = None
+    await scheduler.remove_job('back_id')
     await base_sqlbase.close()
     await state.clear()
 
@@ -215,7 +216,6 @@ async def password(message: Message, state: FSMContext):
             func=reset_base,
             trigger=DateTrigger(run_date=datetime.now() + timedelta(hours=1))
         )
-        scheduler.start()
         await state.clear()
     elif message.text.lower() == 'stop':
         await message.answer('Вход завершён принудительно')
@@ -330,7 +330,7 @@ async def newlogs(message: Message, state: FSMContext):
             await base_sqlbase.execute_query(query, params=(altnewlog,))
             await message.answer('Логин успешно обновлён!')
             global base
-            base = '0'  # Обновляем переменную состояния
+            base = None  # Обновляем переменную состояния
             await state.clear()
         else:  # Если логины не совпадают
             await message.answer('Логины не совпадают. Повторите ввод нового логина.')
@@ -340,7 +340,8 @@ async def newlogs(message: Message, state: FSMContext):
 @router.message(Command('UpdPassword'))
 async def upd(message: Message, state: FSMContext):
     """Изменение пароля"""
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
         await message.answer('Введите новый пароль')
         await state.set_state(UpdPassword.newpass)
     else:
@@ -371,7 +372,7 @@ async def new_password(message: Message, state: FSMContext):
             query = 'UPDATE adm SET password = $1 WHERE id = 1;'
             await base_sqlbase.execute_query(query, params=(altnewpass,))
             await message.answer('Пароль успешно обновлён!')
-            base = 'too'
+            base = None
             await state.clear()
         else:  # Если пароли не совпадают
             await message.answer('Пароли не совпадают. Повторите ввод нового пароля.')
@@ -379,7 +380,7 @@ async def new_password(message: Message, state: FSMContext):
 
 #Добавление адресов
 @router.message(Command('Adds_address'))
-async def start_addres(message: Message, state: FSMContext):
+async def start_address(message: Message, state: FSMContext):
     global base
     ids = message.from_user.id
     if base == f'{ids}one':
@@ -807,33 +808,36 @@ async def review(message: Message):
             GROUP BY hour
             ORDER BY hour;
         """)
+        if data:
 
-        # Обработка данных
-        hours = [str(row['hour']).strip() for row in data]
-        avg_ratings = [row['average_rating'] for row in data]
+            # Обработка данных
+            hours = [str(row['hour']).strip() for row in data]
+            avg_ratings = [row['average_rating'] for row in data]
 
-        plt.figure(figsize=(10, 6))
-        plt.bar(hours, avg_ratings, width=0.3)
+            plt.figure(figsize=(10, 6))
+            plt.bar(hours, avg_ratings, width=0.3)
 
-        # Настройка осей и подписей
-        plt.xlabel('Дата')
-        plt.ylabel('Оценка')
-        plt.title('Средняя оценка по часам за последние 24 часа')
-        plt.ylim(0, 5)
-        plt.xticks(rotation=45)
+            # Настройка осей и подписей
+            plt.xlabel('Дата')
+            plt.ylabel('Оценка')
+            plt.title('Средняя оценка по часам за последние 24 часа')
+            plt.ylim(0, 5)
+            plt.xticks(rotation=45)
 
-        # Сохраняем график в файл
-        file_name = f'{uuid}.png'
-        plt.tight_layout()
-        plt.savefig(file_name)  # Сохраняем изображение в файл
+            # Сохраняем график в файл
+            file_name = f'{uuid}.png'
+            plt.tight_layout()
+            plt.savefig(file_name)  # Сохраняем изображение в файл
 
-        photo = FSInputFile(f'{uuid}.png')
-        await message.answer_photo(photo)
+            photo = FSInputFile(f'{uuid}.png')
+            await message.answer_photo(photo)
 
-        # Удаление файла
-        os.remove(f'{uuid}.png')
+            # Удаление файла
+            os.remove(f'{uuid}.png')
 
-        # Закрытие соединения с БД
+            # Закрытие соединения с БД
+        else:
+            await message.answer('Нет данных по оценкам за 24 часа')
         await base_sqlbase.close()
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
@@ -857,7 +861,7 @@ async def helps(message: Message):
     await message.answer('Команды без использования админских прав:\n'
                          '/StartMessage - запустить отправку сообщений(по умолчанию)\n'
                          '/StopMessage - остановить отправку сообщений\n'
-                         '/Login - для входа под ролью администратора(Работать под админом, может только один человек)\n'
+                         '/Login - для входа под ролью администратора(Работать под аккаунтом админа может только один человек)\n'
                          '/Userid - позволяет любому пользователю узнать свой id\n\n'
 
                          'Команды с использованием админских прав\n'
@@ -865,20 +869,23 @@ async def helps(message: Message):
                          'Exit - выход из админа, предварительно завершив процесс(Как сообщение)\n'
                          '/UpdLogin - изменить логин\n'
                          '/UpdPassword - изменить пароль\n'
-                         '/AddsAdmins - добавить админов\n'
+                         '/AddsAdmins - добавить получаталей отзывов\n'
                          '/New_name - изменить имя клиентского бота(нужно для осуществления работы ссылок '
                          'ботов и QR-кодов, работающих на основе ссылок\n'
+                         'Edit_message - используется для редактирования 2-ух статичных сообщений в боте для клиентов'
                          '/Adds_address - добавить новое место\n'
+                         '/EditPlace - изменить данные места'
                          '/Remove_address - удалить все места с определённым адресом\n'
                          '/Remove_place - удалить какое-либо место\n'
                          '/Qr - создание QR-кода для заведения\n'
                          '/Review - Посмотреть почасовые средние оценки за 24 часа\n'
                          '/Generate_links - для получения ссылок\n\n'
-                         'P.S Отправка уведомлений каждые 60 секунд.'
+                         'P.S Отправка уведомлений каждую минуту.'
                          'Не забывайте выключать сообщения во время процесса администрирования\n'
-                         'Не забудьте выйти из администратора. Администратор может быть только один. В случае, если'
-                         'два человека начнут входить аккаунт администратора, то последний, кто вошёл, и будет '
-                         'администратором. Это сделано в целях безопасности.')
+                         'Не забудьте выйти из администратора или подождите час и произойдёт авто-выход из аккаунта админа'
+                         '. Администратор может быть только один. В случае, если'
+                         'два человека начнут входить аккаунт администратора, то зайдёт тот, кто первее ввёл пароль.'
+                         ' Это сделано в целях безопасности.')
 
 @router.message(~F.text)
 async def not_f(message: Message):

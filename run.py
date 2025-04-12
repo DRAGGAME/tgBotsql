@@ -1,8 +1,8 @@
 import logging
 import asyncio
-import os
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
+from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 
@@ -11,7 +11,6 @@ from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
 from handlers.shedulers.backid import back_id
 from handlers.shedulers.starts import start_cmd
 from jobsadd.jobadd import scheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from db.db import Sqlbase
 from handlers import adminstration_handlers
 
@@ -147,13 +146,13 @@ async def main():
         )
         for count, row in enumerate(rows[0]):
             if row not in (None, 'Нет', 'None', 'нет'):
-                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(row), count, sqlbase_for_sheduler), id=str(row))
-        scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
+                await scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(row), count, sqlbase_for_sheduler), id=str(row))
+        await scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
 
-        scheduler.start()  # Запускаем шедулер
+        await scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
     finally:
-        scheduler.shutdown()  # Останавливаем APScheduler
+        await scheduler.shutdown()  # Останавливаем APScheduler
 
 if __name__ == '__main__':
     try:

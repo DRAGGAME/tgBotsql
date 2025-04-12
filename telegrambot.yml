@@ -10,6 +10,7 @@ dependencies:
   - pandas
   - qrcode
   - pillow
+  - psycopg2
   - apscheduler
   - matplotlib
   - pip:
