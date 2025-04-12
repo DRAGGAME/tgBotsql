@@ -1,0 +1,19 @@
+name: telegramBotsAdm
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pip>=21.0.1
+  - setuptools>=51.00.0
+  - python>=3.10.0
+  - asyncpg
+  - pandas
+  - qrcode
+  - pillow
+  - apscheduler
+  - matplotlib
+  - pip:
+    - python-dotenv
+    - transliterate
+    - aiogram>3.1.0
+prefix: c:/Users/schowm/anaconda3/envs/telegramAdm
