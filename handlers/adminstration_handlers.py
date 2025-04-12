@@ -10,6 +10,9 @@ from uuid import uuid4
 from PIL import Image
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+
+from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
+from handlers.shedulers.backid import back_id
 from jobsadd.jobadd import scheduler
 from aiogram import Router, F, Bot, types
 from aiogram.filters import Command
@@ -29,7 +32,6 @@ base_sqlbase = Sqlbase()
 base = None
 router = Router()
 bot = Bot(token=os.getenv('API_KEY'), parce_mode='MARKDOWN')
-
 
 class UpdLogin(StatesGroup):
     newlog = State()
@@ -140,7 +142,6 @@ async def place_for():
     dictes = {}
     place = await base_sqlbase.execute_query('SELECT place FROM message')
     for number, names in enumerate(place):
-        print(number+1, names[0])
         dictes[number+1] = names[0]
     return dictes
 
@@ -211,7 +212,7 @@ async def password(message: Message, state: FSMContext):
         base = f'{ids}one'
         scheduler.add_job(
             func=reset_base,
-            trigger=DateTrigger(run_date=datetime.now() + timedelta(seconds=10))
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(hours=1))
         )
         scheduler.start()
         await state.clear()
@@ -254,13 +255,15 @@ async def add_admin(message: Message, state: FSMContext):
         await message.answer("Добавление администраторов завершено.")
         await state.clear()
         await base_sqlbase.connect()
+        await sqlbase_for_sheduler.connect()
         rows = await base_sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
 
         for count, row in enumerate(rows[0]): #Создание шедулера
             if row not in (None, 'Нет', 'None', 'нет'):
-                scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), args=(row, count), id=str(row))
+                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(row, count, sqlbase_for_sheduler), id=str(row))
+        scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
 
         # Стартуем шедулер, задача будет активна по умолчанию
         scheduler.start()
@@ -510,7 +513,7 @@ async def update_address_one(message: Message, state: FSMContext):
             await state.update_data(place=value_data)
 
             # Извлекаем данные из базы данных по адресу
-            all_update = await base_sqlbase.execute_query('''SELECT * FROM message WHERE place = $1 ''', (value_data,))
+            all_update = await base_sqlbase.execute_query('''SELECT * FROM message WHERE place = $1 ORDER BY id ASC ''', (value_data,))
             await state.update_data(value_data=all_update)
             # Проверяем, что результат существует
             if all_update:
@@ -520,10 +523,8 @@ async def update_address_one(message: Message, state: FSMContext):
                 image_stream = io.BytesIO(img_blob)
                 image_stream.seek(0)
 
-                # Создаём BufferedInputFile (лучше всего для aiogram 3.x)
                 photo = types.BufferedInputFile(file=image_stream.read(), filename="image.png")
 
-                # Отправляем
                 kb = [
                     [types.KeyboardButton(text='Адрес'), types.KeyboardButton(text='Место')],
                     [types.KeyboardButton(text='Сообщение')],
@@ -682,7 +683,8 @@ async def remove_places(message: Message, state: FSMContext):
 #Получение QR-кода
 @router.message(Command('Qr'))
 async def qr(message: Message, state: FSMContext):
-    if base == 'one':
+    ids = message.from_user.id
+    if base == f'{ids}one':
         await message.answer('Напишите название(Возможно любое)')
         await state.set_state(QrR.name)
     else:

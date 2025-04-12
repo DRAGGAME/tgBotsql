@@ -5,7 +5,8 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
-
+from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
+from handlers.shedulers.backid import back_id
 from handlers.shedulers.starts import start_cmd
 from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -59,6 +60,7 @@ async def user_idd(message: Message):
 
 async def main():
     try:
+        await sqlbase_for_sheduler.connect()
         await run_sqlbase.connect()  # Подключение к БД
         adm = await run_sqlbase.execute_query(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'adm')")
@@ -142,8 +144,9 @@ async def main():
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
         for count, row in enumerate(rows[0]):
-            if row not in (None, 'Нет', 'None'):
-                scheduler.add_job(start_cmd, IntervalTrigger(seconds=5), args=(str(row), count, run_sqlbase), id=str(row))
+            if row not in (None, 'Нет', 'None', 'нет'):
+                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(row), count, sqlbase_for_sheduler), id=str(row))
+        scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
 
         scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
