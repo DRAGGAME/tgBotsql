@@ -2,12 +2,14 @@ import base64
 import io
 import os
 import logging
+from datetime import datetime, timedelta
+
 import qrcode
 import matplotlib.pyplot as plt
 from uuid import uuid4
 from PIL import Image
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from transliterate import translit
 from jobsadd.jobadd import scheduler
 from aiogram import Router, F, Bot, types
 from aiogram.filters import Command
@@ -18,7 +20,6 @@ from psycopg2 import Error
 from db.db import Sqlbase
 from dotenv import load_dotenv
 
-from handlers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
@@ -109,6 +110,10 @@ async def generate_deep_link(place_name):
     # Предполагаем, что переменная encoded_place определена в другом месте
     return f"https://t.me/{bot_username}?start={encoded_place}"
 
+def reset_base():
+    global base
+    base = None
+
 
 #Создание ссылок
 async def send_deep_links(message: Message):
@@ -146,7 +151,6 @@ async def address_for():
     first = {row[0] for row in place}
     return first
 
-#Для остановки ЛЮБЫХ процессов
 
 #Для выхода из админа
 @router.message(F.text.lower() == 'exit')
@@ -204,7 +208,11 @@ async def password(message: Message, state: FSMContext):
         global base
         ids = message.from_user.id
         base = f'{ids}one'
-
+        scheduler.add_job(
+            func=reset_base,
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(seconds=10))
+        )
+        scheduler.start()
         await state.clear()
     elif message.text.lower() == 'stop':
         await message.answer('Вход завершён принудительно')
@@ -214,7 +222,7 @@ async def password(message: Message, state: FSMContext):
 
 #Добавление админов
 @router.message(Command('AddsAdmins'))
-async def AddsAdmins(message: Message, state: FSMContext):
+async def adds_admins(message: Message, state: FSMContext):
     """Добавление админов"""
     global base
     await sqlbase.connect()
@@ -239,7 +247,7 @@ async def AddsAdmins(message: Message, state: FSMContext):
                              'администратора')
 
 @router.message(Admins.adm, F.text)
-async def AddAdmin(message: Message, state: FSMContext):
+async def add_admin(message: Message, state: FSMContext):
     global base
     if message.text.lower() == 'stop':
         await message.answer("Добавление администраторов завершено.")
@@ -841,7 +849,7 @@ async def send_deep(message: Message):
 
 #Для помощи
 @router.message(Command('help'))
-async def help(message: Message):
+async def helps(message: Message):
     await message.answer('Команды без использования админских прав:\n'
                          '/StartMessage - запустить отправку сообщений(по умолчанию)\n'
                          '/StopMessage - остановить отправку сообщений\n'

@@ -6,7 +6,7 @@ from aiogram.types import Message
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 
-from handlers.starts import start_cmd
+from handlers.shedulers.starts import start_cmd
 from jobsadd.jobadd import scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from db.db import Sqlbase
@@ -141,16 +141,14 @@ async def main():
         rows = await sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
-
         for count, row in enumerate(rows[0]):
             if row not in (None, 'Нет', 'None'):
-                scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), args=(str(row), count), id=str(row))
+                scheduler.add_job(start_cmd, IntervalTrigger(seconds=5), args=(str(row), count), id=str(row))
 
-        # scheduler.start()  # Запускаем шедулер
+        scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
     finally:
-        await sqlbase.close()  # Закрываем соединение с БД
-        # scheduler.shutdown()  # Останавливаем APScheduler
+        scheduler.shutdown()  # Останавливаем APScheduler
 
 if __name__ == '__main__':
     try:

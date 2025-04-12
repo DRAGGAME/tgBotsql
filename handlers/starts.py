@@ -28,5 +28,4 @@ async def start_cmd(adm: str, count: int):
                    f"Рейтинг: {row[4]}\n"
                    f"Отзыв: {row[5]}")
         await bot.send_message(chat_id=adm, text=message)
-    await bot.session.close()
 
