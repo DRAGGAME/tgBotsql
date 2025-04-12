@@ -13,7 +13,7 @@ from aiogram import Router, F, Bot, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, FSInputFile, ReplyKeyboardMarkup
+from aiogram.types import Message, FSInputFile
 from psycopg2 import Error
 from db.db import Sqlbase
 from dotenv import load_dotenv
