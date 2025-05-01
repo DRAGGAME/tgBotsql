@@ -146,13 +146,13 @@ async def main():
         )
         for count, row in enumerate(rows[0]):
             if row not in (None, 'Нет', 'None', 'нет'):
-                await scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(row), count, sqlbase_for_sheduler), id=str(row))
-        await scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
+                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(row), count, sqlbase_for_sheduler), id=str(row))
+        scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
 
-        await scheduler.start()  # Запускаем шедулер
+        scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
     finally:
-        await scheduler.shutdown()  # Останавливаем APScheduler
+        scheduler.shutdown()  # Останавливаем APScheduler
 
 if __name__ == '__main__':
     try:

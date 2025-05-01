@@ -13,10 +13,10 @@ async def start_cmd(adm: str, count: int, pool_sqlbase):
 
     last_processed_id = id_back[0][count]
     rows = await pool_sqlbase.execute_query(
-        f"SELECT id, Data_times, Place, Id_user, Rating, Review FROM servers WHERE id > {last_processed_id} ORDER BY id ASC;")
+        f"SELECT id, Data_times, Place, Id_user, Rating, review FROM servers WHERE id > {last_processed_id} ORDER BY id ASC;")
     result = await pool_sqlbase.execute_query("SELECT MAX(id) FROM servers;")
 
-    if result and result[0]:
+    if result and result[0]:                  
         last_processed_id = result[0][0]
         await pool_sqlbase.execute_query(f"UPDATE adm SET id_back{count + 1} = $1 WHERE id=1", (last_processed_id ,))
 
