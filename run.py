@@ -3,7 +3,7 @@ import asyncio
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from apscheduler.triggers.interval import IntervalTrigger
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 
 from config import api_key
@@ -16,7 +16,7 @@ from handlers import adminstration_handlers
 
 logging.basicConfig(level=logging.INFO)
 
-load_dotenv()
+# load_dotenv()
 bot = Bot(token=api_key, parce_mode='MARKDOWN')
 dp = Dispatcher()
 dp.include_router(adminstration_handlers.router)

@@ -22,11 +22,11 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, FSInputFile
 from psycopg2 import Error
 from db.db import Sqlbase
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from handlers.shedulers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG)
-load_dotenv()
+# load_dotenv()
 
 base_sqlbase = Sqlbase()
 
@@ -90,10 +90,8 @@ class EditMessage(StatesGroup):
 
 #Для транскрипции в ссылках
 
-#Кодирование
-def encode_data(data):
-
-    return base64.urlsafe_b64encode(data.encode('utf-8')).decode('utf-8')
+#Кодирование> Комплекс включает два бота: клиентского и  технического. 
+('utf-8')).decode('utf-8')
 
 
 # Генерация ссылки deep_link для места
@@ -866,15 +864,15 @@ async def helps(message: Message):
 
                          'Команды с использованием админских прав\n'
                          'Stop - остановка любого процесса(Как сообщение)\n'
-                         'Exit - выход из админа, предварительно завершив процесс(Как сообщение)\n'
+                         'Exit - выход из админа(Как сообщение)\n'
                          '/UpdLogin - изменить логин\n'
                          '/UpdPassword - изменить пароль\n'
                          '/AddsAdmins - добавить получаталей отзывов\n'
                          '/New_name - изменить имя клиентского бота(нужно для осуществления работы ссылок '
                          'ботов и QR-кодов, работающих на основе ссылок\n'
-                         'Edit_message - используется для редактирования 2-ух статичных сообщений в боте для клиентов'
+                         '/Edit_message - используется для редактирования 2-ух статичных сообщений в боте для клиентов\n'
                          '/Adds_address - добавить новое место\n'
-                         '/EditPlace - изменить данные места'
+                         '/EditPlace - изменить данные места\n'
                          '/Remove_address - удалить все места с определённым адресом\n'
                          '/Remove_place - удалить какое-либо место\n'
                          '/Qr - создание QR-кода для заведения\n'
