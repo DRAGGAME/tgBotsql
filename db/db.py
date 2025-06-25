@@ -1,15 +1,13 @@
 import asyncio
 import asyncpg
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 # Загружаем переменные из .env
-database = os.getenv('DATABASE')
+from config import HOST, PASSWORD, DATABASE, USER
 
-user = os.getenv('PG_user')
-password = os.getenv('PG_password')
-ip = os.getenv('ip')
+pg_host = HOST
+pg_user = USER
+pg_password = PASSWORD
+pg_database = DATABASE
 
 
 class Sqlbase:
@@ -19,10 +17,10 @@ class Sqlbase:
     async def connect(self):
         try:
             self.pool = await asyncpg.create_pool(
-                host=ip,
-                user=user,
-                password=password,
-                database=database,
+                host=pg_host,
+                user=pg_user,
+                password=pg_password,
+                database=pg_database,
                 min_size=1,
                 max_size=10000
             )
@@ -50,19 +48,6 @@ class Sqlbase:
             print(f"Ошибка выполнения запроса: {e}")
             raise
 
-    async def spaltenerstellen(self):
-        query = '''
-            CREATE TABLE IF NOT EXISTS servers (
-                Id SERIAL PRIMARY KEY,
-                data_times TEXT,
-                address TEXT,
-                place TEXT,
-                id_user TEXT,
-                rating INT,
-                review TEXT
-            );
-        '''
-        await self.execute_query(query)
 
     async def ins(self, address, message, photo, place):
         query = '''
@@ -79,12 +64,3 @@ class Sqlbase:
 if __name__ == '__main__':
     sqlbase = Sqlbase()
 
-    async def main():
-        print(f"user: {user}, password: {password}, ip: {ip}, database: {database}")
-        try:
-            await sqlbase.spaltenerstellen()
-            print("Таблица успешно создана.")
-        finally:
-            await sqlbase.close()
-
-    asyncio.run(main())

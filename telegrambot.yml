@@ -10,11 +10,10 @@ dependencies:
   - pandas
   - qrcode
   - pillow
-  - psycopg2
   - apscheduler
   - matplotlib
   - pip:
-    - python-dotenv
+#    - python-dotenv
     - transliterate
     - aiogram>3.1.0
 prefix: c:/Users/schowm/anaconda3/envs/telegramAdm

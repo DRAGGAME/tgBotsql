@@ -1,12 +1,6 @@
-import os
 
-from aiogram import Bot
-
-from config import api_key
+from config import bot
 from db.db import Sqlbase
-
-
-bot = Bot(token=api_key, parce_mode='MARKDOWN')
 
 sqlbase = Sqlbase()
 

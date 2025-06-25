@@ -1,7 +1,7 @@
 import base64
 import io
 import os
-import logging
+# import logging
 from datetime import datetime, timedelta
 
 import qrcode
@@ -11,7 +11,7 @@ from PIL import Image
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from config import api_key
+from config import bot
 from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
 from handlers.shedulers.backid import back_id
 from jobsadd.jobadd import scheduler
@@ -20,19 +20,17 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, FSInputFile
-from psycopg2 import Error
 from db.db import Sqlbase
 from dotenv import load_dotenv
 from handlers.shedulers.starts import start_cmd
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 
 base_sqlbase = Sqlbase()
 
 base = None
 router = Router()
-bot = Bot(token=api_key, parce_mode='MARKDOWN')
 
 class UpdLogin(StatesGroup):
     newlog = State()
@@ -137,6 +135,8 @@ async def send_deep_links(message: Message):
         await message.answer("\n\n".join(links))
     else:
         await message.answer("Нет доступных мест для генерации ссылок.")
+    await base_sqlbase.close()
+
 
 #Получение мест
 async def place_for():
@@ -148,8 +148,6 @@ async def place_for():
 
 #Получение адресов
 async def address_for():
-    await base_sqlbase.connect()
-
     place = await base_sqlbase.execute_query('SELECT address FROM message')
     first = {row[0] for row in place}
     return first
@@ -291,7 +289,7 @@ async def add_admin(message: Message, state: FSMContext):
         await state.update_data(current_count=current_count + 1)
 
         await message.answer(f"ID добавлен в {column_name}. Введите следующий ID или напишите 'Stop'.")
-    except Error as e:
+    except Exception as e:
         await message.answer(f"Произошла ошибка: {str(e)}")
 
 #Изменение логина
@@ -431,8 +429,8 @@ async def messages(message: Message, state: FSMContext):
 @router.message(Address.photo)
 async def photos(message: Message, state: FSMContext):
     """Получение фото от адреса"""
+    update_photo = await state.get_state()
     if message.photo:
-        update_photo = await state.get_state()
         photo = message.photo[-1]  # Берем фото в наилучшем качестве
         file_info = await bot.get_file(photo.file_id)  # Получаем информацию о файле
         file_path = file_info.file_path  # Путь к файлу на серверах Telegram
@@ -450,7 +448,7 @@ async def photos(message: Message, state: FSMContext):
         # Преобразуем в BLOB
         img_blob = img_byte_arr.getvalue()
         await state.update_data(photos=img_blob)
-        if update_photo == 'Update_address:photo':
+        if update_photo == 'UpdateAddress:photo':
             data_update = await state.get_data()
             try:
                 await base_sqlbase.execute_query(f'''UPDATE message SET photo = $1 WHERE place = $2''', (data_update['photos'],
@@ -475,13 +473,20 @@ async def photos(message: Message, state: FSMContext):
             # Очищаем состояние
             await state.clear()
     else:
-        if message.text.lower() == 'stop':
-            await message.answer('Принудительное завершение добавления места')
-            await state.clear()
+        if update_photo == 'UpdateAddress:photo':
+            if message.text.lower() == 'stop':
+                await message.answer('Принудительное завершение изменения места')
+                await state.clear()
+            else:
+                await message.answer('Это не фото')
         else:
-            await message.answer('Это не фото')
+            if message.text.lower() == 'stop':
+                await message.answer('Принудительное завершение добавления места')
+                await state.clear()
+            else:
+                await message.answer('Это не фото')
 
-@router.message(Command('EditPlace'))
+@router.message(Command('Edit_place'))
 async def update_place(message: Message, state: FSMContext):
     ids = message.from_user.id
     if base == f'{ids}one':
@@ -557,19 +562,19 @@ async def update_address_too(message: Message, state: FSMContext):
         await base_sqlbase.close()
     else:
         if message.text.lower() == 'адрес':
-            await message.answer('Введите адрес')
+            await message.answer('Введите изменённый адрес')
             await state.set_state(UpdateAddress.adress)
 
         elif message.text.lower() == 'место':
-            await message.answer('Введите место')
+            await message.answer('Введите изменённое название места')
             await state.set_state(UpdateAddress.name_place)
 
         elif message.text.lower() == 'сообщение':
-            await message.answer('Введите сообщение')
+            await message.answer('Введите изменённое сообщение')
             await state.set_state(UpdateAddress.messages)
 
         elif message.text.lower() == 'фото':
-            await message.answer('Введите фото')
+            await message.answer('Введите изменённое фото')
             await state.set_state(UpdateAddress.photo)
 
 @router.message(UpdateAddress.adress, F.text)
@@ -585,6 +590,8 @@ async def update_address_for_address(message: Message, state: FSMContext):
                                                                                                    data['value_data'][0][4],))
         await message.answer(f'Успешно обновлён адрес в месте - {data['value_data'][0][4]}')
         await base_sqlbase.close()
+        await state.clear()
+
 
 @router.message(UpdateAddress.name_place, F.text)
 async def address_name_place(message: Message, state: FSMContext):
@@ -600,6 +607,8 @@ async def address_name_place(message: Message, state: FSMContext):
 
         await message.answer(f'Успешно обновлёно место в месте - {data['value_data'][0][4]}')
         await base_sqlbase.close()
+        await state.clear()
+
 
 @router.message(UpdateAddress.messages, F.text)
 async def address_name_for_message(message: Message, state: FSMContext):
@@ -614,6 +623,7 @@ async def address_name_for_message(message: Message, state: FSMContext):
                                                                                                    data['value_data'][0][4],))
         await message.answer(f'Успешно обновлёно сообщение в месте - {data['value_data'][0][4]} ')
         await base_sqlbase.close()
+        await state.clear()
 
 #Удаление места
 @router.message(Command('Remove_place'))
@@ -621,12 +631,11 @@ async def remove_place(message: Message, state: FSMContext):
     """Удаление мест"""
     ids = message.from_user.id
     if base == f'{ids}one':
-
+        await base_sqlbase.connect()
         mesage = await place_for()
         variantes = ''
         for nummer in mesage:
             variantes += f'{mesage[nummer]}\n'
-
 
         await message.answer(f'*ВНИМАНИЕ! Вы удаляете по конкретному месту, а не по адресу*\nВведите место из списка, приложенного ниже:'
                              f'\nВот все названия заведений:\n{variantes}', parse_mode='Markdown' )
@@ -649,12 +658,15 @@ async def remove_places(message: Message, state: FSMContext):
             await state.clear()
         except Exception as e:
             await message.answer(f"Произошла ошибка: {str(e)}")
+    await base_sqlbase.close()
+
 
 #Удаление по адресу
 @router.message(Command('Remove_address'), F.text)
 async def remove_place(message: Message, state: FSMContext):
     ids = message.from_user.id
     if base == f'{ids}one':
+        await base_sqlbase.connect()
 
         await message.answer('*ВНИМАНИЕ! Вы удаляете по конкретному адресу - это означает, что все места '
                              'этим адресом удалятся*\nКакое вы хотите удалить место из приложенного списка мест'
@@ -681,13 +693,15 @@ async def remove_places(message: Message, state: FSMContext):
         await base_sqlbase.execute_query('''DELETE FROM message WHERE address = $1''', (message.text,))
         await message.answer('Успешно удалено')
         await state.clear()
+    await base_sqlbase.close()
+
 
 #Получение QR-кода
 @router.message(Command('Qr'))
 async def qr(message: Message, state: FSMContext):
     ids = message.from_user.id
     if base == f'{ids}one':
-        await message.answer('Напишите название(Возможно любое)')
+        await message.answer('Напишите название(Введите любое название, которое хотите для файла)')
         await state.set_state(QrR.name)
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
@@ -726,7 +740,9 @@ async def qr(message: Message, state: FSMContext):
 async def edit_messages(message: Message, state: FSMContext):
     ids = message.from_user.id
     if base == f'{ids}one':
-        kb = [[types.KeyboardButton(text='Между оценкой и отзывом')], [types.KeyboardButton(text='После оценки')]]
+        kb = [
+            [types.KeyboardButton(text='Между оценкой и отзывом')], [types.KeyboardButton(text='После оценки')]
+            ]
         keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, input_field_placeholder='Выберите сообщение')
         await message.answer('Выберите сообщение, которое вы хотите изменить', reply_markup=keyboard)
         await state.set_state(EditMessage.message)
@@ -738,6 +754,11 @@ async def edit_messages(message: Message, state: FSMContext):
 @router.message(EditMessage.message)
 async def edit_messages_one(message: Message, state: FSMContext):
     await base_sqlbase.connect()
+    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+        await state.clear()
+        await base_sqlbase.close()
+        await message.answer("Принудительно завершён процесс изменения сообщений для клиентского бота.")
+        return
     if message.text.lower() == 'между оценкой и отзывом':
         await state.update_data(one_message=message.text.lower())
         await state.set_state(EditMessage.update_message)
@@ -748,17 +769,23 @@ async def edit_messages_one(message: Message, state: FSMContext):
 
 @router.message(EditMessage.update_message)
 async def edit_messages_too(message: Message, state: FSMContext):
+    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+        await state.clear()
+        await base_sqlbase.close()
+        await message.answer("Принудительно завершён процесс изменения сообщений для клиентского бота.")
+        return
     await state.update_data(msg=message.text)
     data = await state.get_data()
     if data['one_message'] == 'между оценкой и отзывом':
+
         await base_sqlbase.execute_query(
-            '''UPDATE static_message SET review_or_rating_message=$1''', (data['msg'], )
+            '''UPDATE static_message SET review_or_rating_message=$1 WHERE id = 1''', (data['msg'], )
         )
         await message.answer('Успешно перезаписано')
 
     elif data['one_message'] == 'после оценки':
         await base_sqlbase.execute_query(
-            '''UPDATE static_message SET review_message=$1''', (data['msg'], )
+            '''UPDATE static_message SET review_message=$1 WHERE id = 1''', (data['msg'], )
         )
         await message.answer('Успешно перезаписано')
     await base_sqlbase.close()
@@ -778,7 +805,7 @@ async def new_name(message: Message, state: FSMContext):
 @router.message(NameBot.name, F.text)
 async def name(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-        await message.answer("Принудительно завершён процесс изменения имени бота.")
+        await message.answer("Принудительно завершён процесс изменения имени клиентского бота.")
         await state.clear()
     else:
         await state.update_data(name=message.text)
@@ -792,10 +819,7 @@ async def name(message: Message, state: FSMContext):
 async def review(message: Message):
     ids = message.from_user.id
     if base == f'{ids}one':
-
-
         await base_sqlbase.connect()
-
 
         uuid = uuid4().hex
 
@@ -809,8 +833,6 @@ async def review(message: Message):
             ORDER BY hour;
         """)
         if data:
-
-            # Обработка данных
             hours = [str(row['hour']).strip() for row in data]
             avg_ratings = [row['average_rating'] for row in data]
 
@@ -824,18 +846,16 @@ async def review(message: Message):
             plt.ylim(0, 5)
             plt.xticks(rotation=45)
 
-            # Сохраняем график в файл
+
             file_name = f'{uuid}.png'
             plt.tight_layout()
-            plt.savefig(file_name)  # Сохраняем изображение в файл
+            plt.savefig(file_name)
 
             photo = FSInputFile(f'{uuid}.png')
             await message.answer_photo(photo)
 
             # Удаление файла
             os.remove(f'{uuid}.png')
-
-            # Закрытие соединения с БД
         else:
             await message.answer('Нет данных по оценкам за 24 часа')
         await base_sqlbase.close()
@@ -848,7 +868,6 @@ async def send_deep(message: Message):
     """Генерация чисто ссылок"""
     ids = message.from_user.id
     if base == f'{ids}one':
-
         await send_deep_links(message)
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
@@ -866,15 +885,15 @@ async def helps(message: Message):
 
                          'Команды с использованием админских прав\n'
                          'Stop - остановка любого процесса(Как сообщение)\n'
-                         'Exit - выход из админа, предварительно завершив процесс(Как сообщение)\n'
+                         'Exit - выход из аккаунта админа, предварительно завершив процесс(Как сообщение)\n'
                          '/UpdLogin - изменить логин\n'
                          '/UpdPassword - изменить пароль\n'
                          '/AddsAdmins - добавить получаталей отзывов\n'
                          '/New_name - изменить имя клиентского бота(нужно для осуществления работы ссылок '
                          'ботов и QR-кодов, работающих на основе ссылок\n'
-                         'Edit_message - используется для редактирования 2-ух статичных сообщений в боте для клиентов'
+                         '/Edit_message - используется для редактирования 2-ух статичных сообщений в боте для клиентов\n'
+                         '/Edit_place - изменить данные какого-либо места\n'                         
                          '/Adds_address - добавить новое место\n'
-                         '/EditPlace - изменить данные места'
                          '/Remove_address - удалить все места с определённым адресом\n'
                          '/Remove_place - удалить какое-либо место\n'
                          '/Qr - создание QR-кода для заведения\n'
@@ -883,7 +902,7 @@ async def helps(message: Message):
                          'P.S Отправка уведомлений каждую минуту.'
                          'Не забывайте выключать сообщения во время процесса администрирования\n'
                          'Не забудьте выйти из администратора или подождите час и произойдёт авто-выход из аккаунта админа'
-                         '. Администратор может быть только один. В случае, если'
+                         '. Администратор может быть только один. В случае, если '
                          'два человека начнут входить аккаунт администратора, то зайдёт тот, кто первее ввёл пароль.'
                          ' Это сделано в целях безопасности.')
 

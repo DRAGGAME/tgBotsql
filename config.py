@@ -1,10 +1,15 @@
 import os
-from dotenv import load_dotenv
 
+from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from dotenv import load_dotenv
 load_dotenv()
-PG_user = str(os.getenv('PG_user'))
-PG_password = str(os.getenv('PG_password'))
-ip = str(os.getenv('ip'))
-DATABASE = str(os.getenv('DATABASE'))
-api_key = str(os.getenv('API_KEY'))
-POSTGRES_URI = f'postgresql://{PG_user}:{PG_password}@{ip}/{DATABASE}'
+
+TG_KEY = os.getenv('TG_API')
+HOST = os.getenv('ip')
+USER = os.getenv('user')
+PASSWORD = os.getenv('password')
+DATABASE = os.getenv('DATABASE')
+
+bot = Bot(token=TG_KEY, default=DefaultBotProperties(parse_mode=ParseMode.HTML))

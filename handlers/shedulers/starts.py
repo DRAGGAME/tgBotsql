@@ -1,15 +1,9 @@
-import os
 
-from aiogram import Bot
-
-from config import PG_user, api_key
-
-bot = Bot(token=api_key, parce_mode='MARKDOWN')
+from config import bot
 
 async def start_cmd(adm: str, count: int, pool_sqlbase):
 
     id_back = await pool_sqlbase.execute_query(f"SELECT id_back1, id_back2, id_back3, id_back4, id_back5, id_back6, id_back7, id_back8, id_back9, id_back10 FROM adm ORDER BY id DESC LIMIT 1;")
-    await pool_sqlbase.execute_query(f"LISTEN {PG_user};")
 
     last_processed_id = id_back[0][count]
     rows = await pool_sqlbase.execute_query(
