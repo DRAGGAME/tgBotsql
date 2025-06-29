@@ -1,4 +1,3 @@
-import base64
 import io
 import os
 # import logging
@@ -12,25 +11,27 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import bot
-from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
-from handlers.shedulers.backid import back_id
-from jobsadd.jobadd import scheduler
-from aiogram import Router, F, Bot, types
+from db.connect_sqlbase_for_sheduler import sqlbase_for_scheduler
+from function.generate_link import generate_deep_link
+from keyboard.fabirc_kb import KeyboardFactory
+from schedulers.backid import back_id
+from schedulers.scheduler_object import scheduler
+from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, FSInputFile
 from db.db import Sqlbase
 from dotenv import load_dotenv
-from handlers.shedulers.starts import start_cmd
+from schedulers.starts import start_cmd
 
-# logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 
 base_sqlbase = Sqlbase()
 
-base = None
 router = Router()
+keyboard_fabric = KeyboardFactory()
+
 
 class UpdLogin(StatesGroup):
     newlog = State()
@@ -52,7 +53,7 @@ class LoginState(StatesGroup):
 class UpdateAddress(StatesGroup):
     name = State()
     name_state = State()
-    adress = State()
+    address = State()
     check = State()
     name_place = State()
     messages = State()
@@ -60,7 +61,7 @@ class UpdateAddress(StatesGroup):
 
 
 class Address(StatesGroup):
-    adress = State()
+    address = State()
     check = State()
     name_place = State()
     messages = State()
@@ -88,30 +89,6 @@ class EditMessage(StatesGroup):
 
 #Для транскрипции в ссылках
 
-#Кодирование
-def encode_data(data):
-
-    return base64.urlsafe_b64encode(data.encode('utf-8')).decode('utf-8')
-
-
-# Генерация ссылки deep_link для места
-async def generate_deep_link(place_name):
-    encoded_place = encode_data(place_name)
-    # Кодируем место
-    bot_username = await base_sqlbase.execute_query('''SELECT name_bot FROM adm''')
-    bot_username = bot_username[0][0]  # Извлекаем имя бота (первый элемент из результата)
-
-    # Если имя бота начинается с '@', убираем только '@'
-    if bot_username[0] == '@':
-        bot_username = bot_username[1:]
-
-    # Если имя бота заканчивается лишним символом (например, пробелом), удаляем его
-    bot_username = bot_username.rstrip()  # Убираем пробелы и символы в конце
-
-
-    # Предполагаем, что переменная encoded_place определена в другом месте
-    return f"https://t.me/{bot_username}?start={encoded_place}"
-
 def reset_base():
     global base
     base = None
@@ -127,7 +104,7 @@ async def send_deep_links(message: Message):
     # Генерируем ссылки для каждого места с транслитерацией
     links = []
     for place in places:
-        deep_link = await generate_deep_link(place)
+        deep_link = await generate_deep_link(base_sqlbase, place)
         links.append(f"{place}: {deep_link}")
 
     # Отправляем администратору список ссылок
@@ -156,93 +133,70 @@ async def address_for():
 #Для выхода из админа
 @router.message(F.text.lower() == 'exit')
 async def handle_stop(message: Message, state: FSMContext):
-    await message.answer("Вы вышли из админа")
-    global base
-    base = None
-    await scheduler.remove_job('back_id')
+    await base_sqlbase.connect()
+    await base_sqlbase.update_state_admin(False)
     await base_sqlbase.close()
-    await state.clear()
 
-#Для логина
+    await state.clear()
+    await message.answer("Вы вышли из админа")
+
+
 @router.message(Command('Login'))
 async def login(message: Message, state: FSMContext):
+
+    """
+    Функция для супер-админа
+    :param message:
+    :param state:
+    """
+
     await base_sqlbase.connect()
     # Выполнение запроса для получения имени и пароля
-    names = await base_sqlbase.execute_query('SELECT name, password FROM adm')
+    password = await base_sqlbase.execute_query('SELECT superuser_password FROM settings_for_admin;')
 
-    if not names:
-        await message.answer("Ошибка: данные для входа не найдены.")
-        return
+    await state.update_data(password=password[0][0])
 
-    # Сохранение имени и пароля в контексте FSM
-    namen, passwords = names[0]
-    await state.update_data(namen=namen, passwords=passwords)
-
-    await message.answer('*ВНИМАНИЕ*, в аккаунт администратора, может зайти *ТОЛЬКО* один человек\n\nВведите логин:'
+    await message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
                          , parse_mode='MARKDOWN')
     await state.set_state(LoginState.name)
 
 
 @router.message(LoginState.name, F.text)
 async def name(message: Message, state: FSMContext):
-    data = await state.get_data()
-    namen = data.get("namen")
 
-    if message.text.lower() == 'stop':
+    user_password = message.text
+    password = await state.get_value("password")
+
+    if user_password == 'stop':
         await message.answer('Вход завершён принудительно')
         await state.clear()
+        await base_sqlbase.close()
         return
 
-    if message.text == namen:
-        await message.answer('Логин - правильный.\nВведите пароль:')
-        await state.set_state(LoginState.password)
-    else:
-        await message.answer('Логин не правильный. Введите правильно')
-
-
-@router.message(LoginState.password, F.text)
-async def password(message: Message, state: FSMContext):
-    data = await state.get_data()
-    passwords = data.get("passwords")
-
-    if message.text == passwords:
-        await message.answer('Пароль - правильный\nТеперь у вас права администратора')
-        global base
-        ids = message.from_user.id
-        base = f'{ids}one'
-        scheduler.add_job(
-            func=reset_base,
-            trigger=DateTrigger(run_date=datetime.now() + timedelta(hours=1))
-        )
+    if user_password == password:
+        await base_sqlbase.update_state_admin(True)
+        await base_sqlbase.close()
         await state.clear()
-    elif message.text.lower() == 'stop':
-        await message.answer('Вход завершён принудительно')
-        await state.clear()
+        await message.answer('Пароль верный, пропишите /help для полного перечня команд')
+
     else:
-        await message.answer('Пароль - неправильный')
+        await message.answer('Пароль неправильный...')
 
 #Добавление админов
-@router.message(Command('AddsAdmins'))
+@router.message(Command('check_new_user'))
 async def adds_admins(message: Message, state: FSMContext):
     """Добавление админов"""
-    global base
     await base_sqlbase.connect()
-    ids = message.from_user.id
-    if base == f'{ids}one':
-        await message.answer('Внимание! Заранее подготовьте id пользователей, чтобы их получить. Вы должны прописать '
-                             'команду /Userid в этом боте - так вы получите свой id, другие люди должны повторить это действие '
-                             'и прислать вам свой id\n'
-                             'После, вы добавляете эти Id, даже если они были добавлены до этого.'
-                             'Вводите данные по очереди, при этом, если было заполнено 9 админов, но обновили вы 4-ёх, '
-                             'то будут обновлены только 4 админа, оставшиеся останутся, '
-                             'чтобы их убрать напишите после добавленных id "Нет", чтобы их перезаписать,'
-                             ' когда вы всё закончили -'
-                             ' напишите "Stop"\n\n'
-                             'Имейтe в виду, что максимум 10 пользователей. При этом можно добавить '
-                             'нового пользователя, обновить данные, можно только под аккаунтом администратора.')
-        scheduler.shutdown()
-
-        await state.set_state(Admins.adm)
+    check_login = await base_sqlbase.check_login()
+    if check_login:
+        not_active_accounts = await base_sqlbase.execute_query("""SELECT username, chat_id FROM admin_list_table WHERE activate=False""")
+        if not_active_accounts:
+            kb = await keyboard_fabric.builder_inline_add_admins()
+            await state.update_data(keyboard_check=kb)
+            await state.update_data(not_active_accounts=list(not_active_accounts), count_for_accounts=0)
+            await message.answer(f"Вот все заявки на администраторов:\n"
+                                 f"Заявка от пользователя: {not_active_accounts[0][0]}",
+                                 reply_markup=kb)
     else:
         await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
                              'администратора')
@@ -254,15 +208,15 @@ async def add_admin(message: Message, state: FSMContext):
         await message.answer("Добавление администраторов завершено.")
         await state.clear()
         await base_sqlbase.connect()
-        await sqlbase_for_sheduler.connect()
+        await sqlbase_for_scheduler.connect()
         rows = await base_sqlbase.execute_query(
             "SELECT adm_1, adm_2, adm_3, adm_4, adm_5, adm_6, adm_7, adm_8, adm_9, adm_10 FROM adm ORDER BY id DESC LIMIT 1;"
         )
 
         for count, row in enumerate(rows[0]): #Создание шедулера
             if row not in (None, 'Нет', 'None', 'нет'):
-                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(row, count, sqlbase_for_sheduler), id=str(row))
-        scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='back_id')
+                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(row, count, sqlbase_for_scheduler), id=str(row))
+        scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_scheduler,), id='back_id')
 
         # Стартуем шедулер, задача будет активна по умолчанию
         scheduler.start()
@@ -391,7 +345,7 @@ async def start_address(message: Message, state: FSMContext):
 
 
 #Для названия
-@router.message(Address.adress, F.text)
+@router.message(Address.address, F.text)
 async def addres(message: Message, state: FSMContext):
     await state.update_data(addres=message.text)
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
@@ -577,7 +531,7 @@ async def update_address_too(message: Message, state: FSMContext):
             await message.answer('Введите изменённое фото')
             await state.set_state(UpdateAddress.photo)
 
-@router.message(UpdateAddress.adress, F.text)
+@router.message(UpdateAddress.address, F.text)
 async def update_address_for_address(message: Message, state: FSMContext):
     if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
         await message.answer("Принудительно завершён процесс изменения мест.")

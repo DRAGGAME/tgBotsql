@@ -51,10 +51,15 @@ class CreateTable(Sqlbase):
         """
         query = '''CREATE TABLE IF NOT EXISTS settings_for_admin (
             Id SERIAL PRIMARY KEY,
-            bot_name TEXT 
-        );'''
+            superuser_password TEXT DEFAULT 12345,
+            superuser_active BOOLEAN DEFAULT FALSE,
+            password_query TEXT DEFAULT 123,
+            bot_name TEXT);'''
 
         await self.execute_query(query)
+        select = await self.execute_query("""SELECT * FROM settings_for_admin""")
+        if select is None:
+            await self.execute_query('''INSERT INTO settings_for_admin DEFAULT VALUES;''')
 
     async def create_table_admin_users(self) -> None:
 
@@ -65,9 +70,10 @@ class CreateTable(Sqlbase):
         query = '''
         CREATE TABLE IF NOT EXISTS admin_list_table (
         Id SERIAL PRIMARY KEY,
-        User_id TEXT NOT NULL,
+        chat_id TEXT NOT NULL,
         Username TEXT NOT NULL,
-        last_id_message TEXT NOT NULL
+        last_id_message TEXT DEFAULT '0',
+        activate BOOLEAN DEFAULT FALSE
         );'''
 
         await self.execute_query(query)

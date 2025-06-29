@@ -2,19 +2,19 @@ import logging
 import asyncio
 
 from aiogram import Dispatcher
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command
 from aiogram.types import Message
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import bot
-from db.connect_sqlbase_for_sheduler import sqlbase_for_sheduler
+from db.connect_sqlbase_for_sheduler import sqlbase_for_scheduler
 from db.create_table import CreateTable
-from handlers.shedulers.backid import back_id
-from handlers.shedulers.starts import start_cmd
-from jobsadd.jobadd import scheduler
-from db.db import Sqlbase
+from handlers.add_admin_handler import router_add_admins
+from schedulers.backid import back_id
+from schedulers.starts import start_cmd
+from handlers.user_handlers import user_router
+from schedulers.scheduler_object import scheduler
 from handlers import adminstration_handlers
-
 
 logging.basicConfig(level=logging.DEBUG,
                     format='[%(asctime)s] #%(levelname)-4s %(filename)s:'
@@ -22,62 +22,67 @@ logging.basicConfig(level=logging.DEBUG,
                     )
 
 dp = Dispatcher()
-dp.include_router(adminstration_handlers.router)
-
-@dp.message(CommandStart())
-async def start(message: Message):
-    await message.reply('Введите команду /help')
+dp.include_routers(adminstration_handlers.router, user_router, router_add_admins)
 
 
 @dp.message(Command('StartMessage'))
 async def start_message(message: Message):
-    id_user = message.from_user.id
-    job = scheduler.get_job(str(id_user))
+    """
+    Начать пересылку сообщений
+    :param message:
+    """
+    chat_id = message.chat.id
+    job = scheduler.get_job(str(chat_id))
 
     if not job:
-        # Если задача не была добавлена, добавляем её
-        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(id_user))
+        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(chat_id))
 
-    # Включаем задачу
-    scheduler.resume_job(str(id_user))
+    scheduler.resume_job(str(chat_id))
     await message.answer('Теперь сообщения будут доставляться вам')
 
 
 @dp.message(Command('StopMessage'))
 async def stop_message(message: Message):
-    id_user = message.from_user.id
-    job = scheduler.get_job(str(id_user))
+    """
+    Остановить пересылку сообщений
+    :param message:
+    """
+    chat_id = message.chat.id
+
+    job = scheduler.get_job(str(chat_id))
     if job:
         # Останавливаем задачу, если она существует
-        scheduler.pause_job(str(id_user))
+        scheduler.pause_job(str(chat_id))
         await message.answer('Теперь сообщения не доставляются вам')
     else:
         await message.answer('Задача не была запущена.')
 
-@dp.message(Command('Userid'))
-async def user_idd(message: Message):
-    await message.answer(f'ID вашего профиля в телеграм: {message.from_user.id}')
-
-
 async def main():
+    """
+    Создание таблиц
+    Создание шедулеров
+    :return:
+    """
     try:
         run_sqlbase = CreateTable()
 
-        await sqlbase_for_sheduler.connect()
+        await sqlbase_for_scheduler.connect()
         await run_sqlbase.connect()  # Подключение к БД
+        await run_sqlbase.update_inactive(False, 0, )
         await run_sqlbase.create_table_adm_settings()
         await run_sqlbase.create_table_settings_for_review()
         await run_sqlbase.create_table_admin_users()
         await run_sqlbase.create_table_reviews()
 
-        rows = await run_sqlbase.execute_query(
-            "SELECT user_id FROM admin_list_table ORDER BY id ASC;"
+        chat_ids = await run_sqlbase.execute_query(
+            "SELECT chat_id FROM admin_list_table WHERE activate=True ORDER BY id ASC;"
         )
-        if rows:
-            for count, row in enumerate(rows[0]):
-                if row not in (None, 'Нет', 'None', 'нет'):
-                    scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(row), count, sqlbase_for_sheduler), id=str(row))
-            scheduler.add_job(  back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_sheduler,), id='id_back')
+
+        if chat_ids:
+            for chat_id in chat_ids[0]:
+                if chat_id not in (None, ):
+                    scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=(str(chat_id), sqlbase_for_scheduler), id=str(chat_id))
+            scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_scheduler,), id='id_back')
 
         scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
