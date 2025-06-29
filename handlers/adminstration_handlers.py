@@ -1,13 +1,11 @@
 import io
 import os
 # import logging
-from datetime import datetime, timedelta
 
 import qrcode
 import matplotlib.pyplot as plt
 from uuid import uuid4
 from PIL import Image
-from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import bot

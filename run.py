@@ -70,6 +70,7 @@ async def main():
         await run_sqlbase.connect()  # Подключение к БД
         await run_sqlbase.update_inactive(False, 0, )
         await run_sqlbase.create_table_adm_settings()
+        await run_sqlbase.create_table_message()
         await run_sqlbase.create_table_settings_for_review()
         await run_sqlbase.create_table_admin_users()
         await run_sqlbase.create_table_reviews()

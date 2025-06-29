@@ -17,7 +17,7 @@ class CreateTable(Sqlbase):
                 address TEXT NOT NULL,
                 place TEXT NOT NULL,
                 rating SMALLINT NOT NULL,
-                review TEXT NOT NULL
+                review TEXT DEFAULT NULL
             );
         '''
         await self.execute_query(query)
@@ -77,6 +77,15 @@ class CreateTable(Sqlbase):
         );'''
 
         await self.execute_query(query)
+
+    async def create_table_message(self):
+        await self.execute_query('''
+                CREATE TABLE IF NOT EXISTS message (
+                    Id SERIAL PRIMARY KEY,
+                    address TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    photo BYTEA NOT NULL,
+                    place TEXT NOT NULL);''')
 
 
 
