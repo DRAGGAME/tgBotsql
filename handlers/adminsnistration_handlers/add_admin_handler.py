@@ -2,8 +2,9 @@ import asyncio
 
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
 from config import bot
 from db.db import Sqlbase
@@ -13,6 +14,23 @@ keyboard_fabric_add = KeyboardFactory()
 router_add_admins = Router()
 sqlbase_add_admins = Sqlbase()
 
+@router_add_admins.message(Command('check_new_user'))
+async def adds_admins(message: Message, state: FSMContext):
+    """Добавление админов"""
+    await sqlbase_add_admins.connect()
+    check_login = await sqlbase_add_admins.check_login()
+    if check_login:
+        not_active_accounts = await sqlbase_add_admins.execute_query("""SELECT username, chat_id FROM admin_list_table WHERE activate=False""")
+        if not_active_accounts:
+            kb = await keyboard_fabric_add.builder_inline_add_admins()
+            await state.update_data(keyboard_check=kb)
+            await state.update_data(not_active_accounts=list(not_active_accounts), count_for_accounts=0)
+            await message.answer(f"Вот все заявки на администраторов:\n"
+                                 f"Заявка от пользователя: {not_active_accounts[0][0]}",
+                                 reply_markup=kb)
+    else:
+        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+                             'администратора')
 
 @router_add_admins.callback_query(InlineAddAdmin.filter(F.action.in_(["accept", "reject", ])))
 async def add_admins_handler(callback: CallbackQuery, callback_data: InlineAddAdmin, state: FSMContext):
@@ -26,7 +44,7 @@ async def add_admins_handler(callback: CallbackQuery, callback_data: InlineAddAd
         kb = await state.get_value("keyboard_check")
 
         last_account = accounts[0]
-        last_name_account = last_account[0]
+
         last_chat_id = last_account[1]
 
         accounts.pop(count)

@@ -68,7 +68,7 @@ class Sqlbase:
         check_active = await self.execute_query("""SELECT superuser_active FROM settings_for_admin""")
         return check_active[0][0]
 
-    async def ins(self, address, message, photo, place):
+    async def insert_message(self, address, message, photo, place):
         query = '''
             INSERT INTO message (address, message, photo, place)
             VALUES ($1, $2, $3, $4);

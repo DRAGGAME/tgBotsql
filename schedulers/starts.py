@@ -13,7 +13,7 @@ async def start_cmd(chat_id: str, pool_sqlbase: Sqlbase):
     if not reviews:
         return
 
-    max_id = await pool_sqlbase.execute_query("SELECT MAX(id) FROM servers;")
+    max_id = await pool_sqlbase.execute_query("SELECT MAX(id) FROM reviews;")
     await pool_sqlbase.execute_query(f"UPDATE admin_list_table (last_id_message) = $1 WHERE chat_id = $2", (max_id, chat_id ,))
 
     for review in reviews:

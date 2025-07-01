@@ -17,7 +17,7 @@ class CreateTable(Sqlbase):
                 address TEXT NOT NULL,
                 place TEXT NOT NULL,
                 rating SMALLINT NOT NULL,
-                review TEXT DEFAULT NULL
+                review TEXT
             );
         '''
         await self.execute_query(query)
