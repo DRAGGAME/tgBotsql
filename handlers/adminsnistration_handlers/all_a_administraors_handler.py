@@ -1,10 +1,15 @@
+from datetime import datetime, timedelta
+
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message
+from apscheduler.triggers.date import DateTrigger
 
 from db.db import Sqlbase
+from schedulers.auto_exit import auto_exit
+from schedulers.scheduler_object import scheduler
 
 router_for_admin = Router()
 sqlbase_for_admin_function = Sqlbase()
@@ -23,7 +28,7 @@ async def handle_stop(message: Message, state: FSMContext):
     await sqlbase_for_admin_function.connect()
     await sqlbase_for_admin_function.update_state_admin(False)
     await sqlbase_for_admin_function.close()
-
+    scheduler.remove_job(job_id="auto_exit")
     await state.clear()
     await message.answer("Вы вышли из админа")
 
@@ -35,8 +40,10 @@ async def login(message: Message, state: FSMContext):
     :param message:
     :param state:
     """
-
     await sqlbase_for_admin_function.connect()
+
+    run_time = datetime.now() + timedelta(hours=1)
+    scheduler.add(auto_exit, trigger=DateTrigger(run_date=run_time), id="auto_exit")
     # Выполнение запроса для получения имени и пароля
     password = await sqlbase_for_admin_function.execute_query('SELECT superuser_password FROM settings_for_admin;')
 
