@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message
+from apscheduler.jobstores.base import ConflictingIdError
 from apscheduler.triggers.date import DateTrigger
 
 from db.db import Sqlbase
@@ -41,9 +42,6 @@ async def login(message: Message, state: FSMContext):
     :param state:
     """
     await sqlbase_for_admin_function.connect()
-
-    run_time = datetime.now() + timedelta(hours=1)
-    scheduler.add(auto_exit, trigger=DateTrigger(run_date=run_time), id="auto_exit")
     # Выполнение запроса для получения имени и пароля
     password = await sqlbase_for_admin_function.execute_query('SELECT superuser_password FROM settings_for_admin;')
 
@@ -69,6 +67,11 @@ async def name(message: Message, state: FSMContext):
     if user_password == password:
         await sqlbase_for_admin_function.update_state_admin(True)
         await sqlbase_for_admin_function.close()
+        try:
+            run_time = datetime.now() + timedelta(hours=1)
+            scheduler.add_job(auto_exit, trigger=DateTrigger(run_date=run_time), id="auto_exit")
+        except ConflictingIdError:
+            pass
         await state.clear()
         await message.answer('Пароль верный, пропишите /help для полного перечня команд')
 

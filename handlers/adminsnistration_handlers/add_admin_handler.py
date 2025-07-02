@@ -5,10 +5,14 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from apscheduler.triggers.interval import IntervalTrigger
 
 from config import bot
+from db.connect_sqlbase_for_sheduler import sqlbase_for_scheduler
 from db.db import Sqlbase
 from keyboard.fabirc_kb import KeyboardFactory, InlineAddAdmin
+from schedulers.scheduler_object import scheduler
+from schedulers.starts import start_cmd
 
 keyboard_fabric_add = KeyboardFactory()
 router_add_admins = Router()
@@ -52,6 +56,9 @@ async def add_admins_handler(callback: CallbackQuery, callback_data: InlineAddAd
         try:
             if data_action == "accept":
                 await sqlbase_add_admins.update_inactive(True, last_chat_id, )
+                scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=[str(last_chat_id), sqlbase_for_scheduler],
+                                  id=str(last_chat_id))
+
                 await bot.send_message(chat_id=last_chat_id, text="Вашу заявку приняли, теперь вы - действующий администратор")
             elif data_action == "reject":
                 await sqlbase_add_admins.delete_admins(last_chat_id, )

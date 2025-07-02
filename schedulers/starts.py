@@ -4,7 +4,7 @@ from db.db import Sqlbase
 
 async def start_cmd(chat_id: str, pool_sqlbase: Sqlbase):
 
-    last_message_id = await pool_sqlbase.execute_query(f"SELECT last_id_message"
+    last_message_id = await pool_sqlbase.execute_query(f"SELECT last_id_message "
                                                f"FROM admin_list_table WHERE chat_id = $1 ORDER BY id ASC;", (chat_id,))
 
     reviews = await pool_sqlbase.execute_query(

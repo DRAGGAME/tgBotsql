@@ -36,7 +36,7 @@ async def main():
 
         await sqlbase_for_scheduler.connect()
         await run_sqlbase.connect()  # Подключение к БД
-        await run_sqlbase.update_inactive(False, 0, )
+        # await run_sqlbase.update_inactive(False, 0, )
         await run_sqlbase.create_table_adm_settings()
         await run_sqlbase.create_table_message()
         await run_sqlbase.create_table_settings_for_review()
@@ -46,7 +46,6 @@ async def main():
         chat_ids = await run_sqlbase.execute_query(
             "SELECT chat_id FROM admin_list_table WHERE activate=True ORDER BY id ASC;"
         )
-
         if chat_ids:
             for chat_id in chat_ids[0]:
                 if chat_id not in (None, ):
