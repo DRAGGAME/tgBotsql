@@ -102,14 +102,14 @@ async def new_password(message: Message, state: FSMContext):
             await message.answer("Обновление пароля прервано.")
             await state.clear()
         else:
-            await state.update_data(altnewpass=message.text)  # Сохраняем первый ввод
+            await state.update_data(alt_newpassword=message.text)  # Сохраняем первый ввод
             await message.answer('Введите ещё раз новый пароль, чтобы подтвердить.')
     else:  # Второй ввод пароля
         if message.text.lower() == 'stop':
             await message.answer("Обновление пароля прервано.")
             await state.clear()
         elif alt_newpassword == message.text: #При совпадении пароля
-            query = 'UPDATE adm SET password = $1 WHERE id = 1;'
+            query = 'UPDATE setting_for_admin SET superuser_password = $1 WHERE id = 1;'
             await sqlbase_for_admin_function.execute_query(query, params=(alt_newpassword,))
             await message.answer('Пароль успешно обновлён!')
             await state.clear()

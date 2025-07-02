@@ -10,6 +10,7 @@ from aiogram.types import Message, FSInputFile
 from apscheduler.triggers.interval import IntervalTrigger
 from matplotlib import pyplot as plt
 
+from config import bot
 from db.db import Sqlbase
 from function.generate_link import generate_deep_link
 from schedulers.scheduler_object import scheduler
@@ -37,13 +38,15 @@ async def start_message(message: Message):
     chat_id = message.chat.id
     job = scheduler.get_job(str(chat_id))
     await sqlbase_admin_function.connect()
-    admin_list = await sqlbase_admin_function.execute_query("""SELECT chat_id FROM admin_list_table""")
-    if chat_id in admin_list:
-        if not job:
-            scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(chat_id))
+    if not job:
+        scheduler.add_job(start_cmd, IntervalTrigger(seconds=60), id=str(chat_id))
 
         scheduler.resume_job(str(chat_id))
-    await message.answer('Теперь сообщения будут доставляться вам')
+    await bot.send_message(chat_id=chat_id, text='Теперь сообщения будут доставляться вам')
+
+
+    await sqlbase_admin_function.close()
+
 
 
 @router_for_admin_function.message(Command('StopMessage'))
@@ -53,16 +56,13 @@ async def stop_message(message: Message):
     :param message:
     """
     chat_id = message.chat.id
-
     job = scheduler.get_job(str(chat_id))
-    admin_list = await sqlbase_admin_function.execute_query("""SELECT chat_id FROM admin_list_table""")
 
-    if chat_id in admin_list:
 
-        if job:
-            # Останавливаем задачу, если она существует
-            scheduler.pause_job(str(chat_id))
-            await message.answer('Теперь сообщения не доставляются вам')
+    if job:
+        # Останавливаем задачу, если она существует
+        scheduler.pause_job(str(chat_id))
+        await message.answer('Теперь сообщения не доставляются вам')
     else:
         await message.answer('Вас нет в списке администраторов')
 

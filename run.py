@@ -11,6 +11,7 @@ from db.connect_sqlbase_for_sheduler import sqlbase_for_scheduler
 from db.create_table import CreateTable
 from handlers.adminsnistration_handlers.add_admin_handler import router_add_admins
 from handlers.adminsnistration_handlers.address_handlers import router_for_places
+from handlers.adminsnistration_handlers.admin_function import router_for_admin_function
 from handlers.adminsnistration_handlers.all_a_administraors_handler import router_for_admin
 from schedulers.backid import back_id
 from schedulers.starts import start_cmd
@@ -23,7 +24,8 @@ logging.basicConfig(level=logging.DEBUG,
                     )
 
 dp = Dispatcher()
-dp.include_routers( user_router, router_add_admins, router_for_places, router_for_admin)
+
+dp.include_routers( user_router, router_add_admins, router_for_places, router_for_admin, router_for_admin_function)
 
 async def main():
     """
