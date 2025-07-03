@@ -125,8 +125,17 @@ class FabricInline(KeyboardFactory):
 
     async def inline_main_menu(self):
         await self.create_builder_inline()
+
+        button_login = InlineKeyboardButton(
+            text="Войти в аккаунт супер-пользователя",
+            callback_data=InlineAddAdmin(
+                action="login_in_super_admin"
+            ).pack()
+        )
+
         self.builder_inline.row(self.button_start)
         self.builder_inline.row(self.button_message_stop)
+        self.builder_inline.row(button_login)
         self.builder_inline.row(self.button_generate, self.button_create_qr)
         self.builder_inline.row(self.button_review)
 
