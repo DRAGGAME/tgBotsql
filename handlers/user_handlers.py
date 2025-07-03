@@ -6,6 +6,7 @@ from aiogram.types import Message
 
 from db.db import Sqlbase
 from keyboard.fabirc_kb import KeyboardFactory
+from keyboard.menu_fabric import FabricInline
 
 
 class AnswerForAdmin(StatesGroup):
@@ -15,7 +16,7 @@ class AnswerForAdmin(StatesGroup):
 
 user_router = Router()
 user_sqlbase = Sqlbase()
-keyboard = KeyboardFactory()
+keyboard = FabricInline()
 
 @user_router.message(F.text.lower()=='отправить новую заявку')
 @user_router.message(CommandStart())
@@ -26,7 +27,8 @@ async def check_user_in_admin(message: Message, state: FSMContext):
 
     check_user = await user_sqlbase.execute_query("""SELECT * FROM admin_list_table WHERE chat_id=$1""", (str(chat_id), ))
     if check_user:
-        await message.answer("Вы уже записаны")
+        kb = await keyboard.reply_menu()
+        await message.answer("Вы уже записаны", reply_markup=kb)
         await user_sqlbase.close()
 
     else:
