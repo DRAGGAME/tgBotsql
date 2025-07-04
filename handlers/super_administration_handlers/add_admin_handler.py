@@ -11,6 +11,7 @@ from config import bot
 from db.connect_sqlbase_for_sheduler import sqlbase_for_scheduler
 from db.db import Sqlbase
 from keyboard.fabirc_kb import KeyboardFactory, InlineAddAdmin
+from keyboard.menu_fabric import InlineMainMenu
 from schedulers.scheduler_object import scheduler
 from schedulers.starts import start_cmd
 
@@ -18,8 +19,8 @@ keyboard_fabric_add = KeyboardFactory()
 router_add_admins = Router()
 sqlbase_add_admins = Sqlbase()
 
-@router_add_admins.message(Command('check_new_user'))
-async def adds_admins(message: Message, state: FSMContext):
+@router_add_admins.callback_query(InlineMainMenu.filter(F.action=='bid_for_admin'))
+async def adds_admins(callback: CallbackQuery, state: FSMContext):
     """Добавление админов"""
     await sqlbase_add_admins.connect()
     check_login = await sqlbase_add_admins.check_login()
@@ -29,11 +30,13 @@ async def adds_admins(message: Message, state: FSMContext):
             kb = await keyboard_fabric_add.builder_inline_add_admins()
             await state.update_data(keyboard_check=kb)
             await state.update_data(not_active_accounts=list(not_active_accounts), count_for_accounts=0)
-            await message.answer(f"Вот все заявки на администраторов:\n"
+            await callback.message.edit_text(f"Вот все заявки на администраторов:\n"
                                  f"Заявка от пользователя: {not_active_accounts[0][0]}",
                                  reply_markup=kb)
+        else:
+            await callback.answer("Новые заявки отсутствуют")
     else:
-        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+        await callback.message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
                              'администратора')
 
 @router_add_admins.callback_query(InlineAddAdmin.filter(F.action.in_(["accept", "reject", ])))

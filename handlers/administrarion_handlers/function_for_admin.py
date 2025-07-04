@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 from config import bot
 from db.db import Sqlbase
 from function.generate_link import generate_deep_link
-from handlers.super_administration_handlers.address_handlers import keyboard_fabric
+from handlers.super_administration_handlers.address_handlers import keyboard_fabric, messages
 from handlers.user_handlers import keyboard
 from keyboard.menu_fabric import FabricInline, InlineMainMenu
 from schedulers.scheduler_object import scheduler
@@ -213,20 +213,19 @@ async def qr(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text('Ошибка: вы не администратор. Напишите /start - чтобы отправить заявку на администратора')
 
 @router_admin_function.message(QrR.url, F.text)
-@router_admin_function.callback_query(QrR.url, InlineMainMenu.filter(F.regime=="stop"))
-async def qr(callback: CallbackQuery, state: FSMContext, callback_data=InlineMainMenu):
-    if callback_data.regime == 'stop':  # Проверяем, завершил ли пользователь процесс
-        kb = await state.get_value("menu_kb")
-        await callback.answer("Принудительно завершён процесс создание QR.")
-        await callback.message.edit_text("Выберите действие:", reply_markup=kb)
+async def qr(message: Message, state: FSMContext, callback_data=InlineMainMenu):
+    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
+        kb = await fabric_keyboard.inline_main_menu()
+        await message.answer("Принудительно завершён процесс создание QR.")
+        await message.edit_text("Выберите действие:", reply_markup=kb)
         await state.clear()
     else:
-        await state.update_data(url=callback.message.text)
+        await state.update_data(url=message.text)
         data = await state.get_data()
         qr_image = qrcode.make(data['url'])
         file_name = f"{uuid4().hex}.png"
         qr_image.save(file_name)
 
-        await callback.message.answer_photo(photo=FSInputFile(file_name), caption=f'Вот ваш QR-код. Нажмите кнопку "Открыть панель действий", чтобы выбрать действий')
+        await message.answer_photo(photo=FSInputFile(file_name), caption=f'Вот ваш QR-код. Нажмите кнопку "Открыть панель действий", чтобы выбрать действий')
         await os.remove(file_name)
         await state.clear()

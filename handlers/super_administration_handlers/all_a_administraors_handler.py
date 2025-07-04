@@ -4,17 +4,19 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from apscheduler.jobstores.base import ConflictingIdError
 from apscheduler.triggers.date import DateTrigger
 
 from db.db import Sqlbase
+from handlers.super_administration_handlers.address_handlers import messages
+from keyboard.menu_fabric import InlineMainMenu, FabricInline
 from schedulers.auto_exit import auto_exit
 from schedulers.scheduler_object import scheduler
 
 router_for_admin = Router()
 sqlbase_for_admin_function = Sqlbase()
-
+keyboard = FabricInline()
 
 class UpdPassword(StatesGroup):
     newpass = State()
@@ -33,24 +35,24 @@ async def handle_stop(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Вы вышли из админа")
 
-@router_for_admin.message(Command('Login'))
-async def login(message: Message, state: FSMContext):
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action=="login_in_super_admin"))
+async def login(callback: CallbackQuery, state: FSMContext):
 
     """
     Функция для супер-админа
-    :param message:
+    :param callback:
     :param state:
     """
     await sqlbase_for_admin_function.connect()
     # Выполнение запроса для получения имени и пароля
     password = await sqlbase_for_admin_function.execute_query('SELECT superuser_password FROM settings_for_admin;')
-
+    kb = await keyboard.stop()
     await state.update_data(password=password[0][0])
 
-    await message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
-                         , parse_mode='MARKDOWN')
+    await callback.message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
+                         , reply_markup=kb, parse_mode='MARKDOWN')
+    await callback.answer()
     await state.set_state(LoginState.name)
-
 
 @router_for_admin.message(LoginState.name, F.text)
 async def name(message: Message, state: FSMContext):
@@ -58,8 +60,9 @@ async def name(message: Message, state: FSMContext):
     user_password = message.text
     password = await state.get_value("password")
 
-    if user_password == 'stop':
-        await message.answer('Вход завершён принудительно')
+    if message.text.lower() == 'стоп':
+        kb = await keyboard.inline_main_menu()
+        await message.answer('Вход завершён принудительно, выберите действие', reply_markup=kb)
         await state.clear()
         await sqlbase_for_admin_function.close()
         return
@@ -67,13 +70,14 @@ async def name(message: Message, state: FSMContext):
     if user_password == password:
         await sqlbase_for_admin_function.update_state_admin(True)
         await sqlbase_for_admin_function.close()
+        kb = await keyboard.inline_admin_main_menu()
         try:
             run_time = datetime.now() + timedelta(hours=1)
             scheduler.add_job(auto_exit, trigger=DateTrigger(run_date=run_time), id="auto_exit")
         except ConflictingIdError:
             pass
         await state.clear()
-        await message.answer('Пароль верный, пропишите /help для полного перечня команд')
+        await message.answer('Пароль верный, пропишите /help для полного перечня команд', reply_markup=kb)
 
     else:
         await message.answer('Пароль неправильный...')

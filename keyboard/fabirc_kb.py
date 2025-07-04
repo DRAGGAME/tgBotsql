@@ -70,8 +70,8 @@ class KeyboardFactory:
     async def builder_choice(self):
         await self.create_builder_reply()
 
-        self.builder_reply.row("Между оценкой и отзывом")
-        self.builder_reply.row("После оценки")
+        self.builder_reply.row(KeyboardButton(text="Между оценкой и отзывом"))
+        self.builder_reply.row(KeyboardButton(text="После оценки"))
 
         choice_keyboard = self.builder_reply.as_markup(resize_keyboard=True,
                                                 input_field_placeholder='Выберите сообщение, которое вы хотите изменить', is_persistent=True)

@@ -6,16 +6,17 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
 
 from config import bot
 from db.db import Sqlbase
 from function.alL_places_or_addresses import place_for, address_for
 from keyboard.fabirc_kb import KeyboardFactory
+from keyboard.menu_fabric import InlineMainMenu, FabricInline
 
 router_for_places = Router()
 sqlbase_for_places = Sqlbase()
-keyboard_fabric = KeyboardFactory()
+keyboard_fabric = FabricInline()
 
 class Address(StatesGroup):
     address = State()
@@ -45,24 +46,27 @@ class UpdateAddress(StatesGroup):
     photo = State()
 
 
-@router_for_places.message(Command('Adds_address'))
-async def start_address(message: Message, state: FSMContext):
+@router_for_places.callback_query(InlineMainMenu.filter(F.action=="add_place"))
+async def start_address(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
     if check_login:
-        await message.answer('Введите адрес')
+        kb = await keyboard_fabric.stop()
+        await callback.message.answer('Введите адрес', reply_markup=kb)
+        await callback.answer()
         await state.set_state(Address.address)
     else:
-        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
                              'администратора')
 
 
 #Для названия
 @router_for_places.message(Address.address, F.text)
-async def addres(message: Message, state: FSMContext):
+async def input_address(message: Message, state: FSMContext):
     await state.update_data(address=message.text)
-    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-        await message.answer("Принудительно завершён процесс добавление адреса.")
+    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
+        await message.answer("Принудительно завершён процесс добавления адреса.")
+        await sqlbase_for_places.close()
         await state.clear()
     else:
         await message.answer('Введите название')
@@ -72,8 +76,9 @@ async def addres(message: Message, state: FSMContext):
 @router_for_places.message(Address.name_place, F.text)
 async def name_place(message: Message, state: FSMContext):
     await state.update_data(name_place=message.text)
-    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-        await message.answer("Принудительно завершён процесс добавление адреса.")
+    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
+        await message.answer("Принудительно завершён процесс добавления адреса.")
+        await sqlbase_for_places.close()
         await state.clear()
     else:
         await message.answer('Введите сообщение к заведению.')
@@ -84,8 +89,9 @@ async def name_place(message: Message, state: FSMContext):
 @router_for_places.message(Address.messages, F.text)
 async def messages(message: Message, state: FSMContext):
     await state.update_data(messages=message.text)
-    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
-        await message.answer("Принудительно завершён процесс добавление адреса.")
+    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
+        await message.answer("Принудительно завершён процесс добавления адреса.")
+        await sqlbase_for_places.close()
         await state.clear()
     else:
         await message.answer('Введите фото(Через ПК - нужна пометка "с сжатием"):')
@@ -97,6 +103,7 @@ async def messages(message: Message, state: FSMContext):
 async def photos(message: Message, state: FSMContext):
     """Получение фото от адреса"""
     update_photo = await state.get_state()
+
     if message.photo:
         photo = message.photo[-1]  # Берем фото в наилучшем качестве
         file_info = await bot.get_file(photo.file_id)  # Получаем информацию о файле
@@ -141,36 +148,37 @@ async def photos(message: Message, state: FSMContext):
             await state.clear()
     else:
         if update_photo == 'UpdateAddress:photo':
-            if message.text.lower() == 'stop':
+            if message.text.lower() == 'стоп':
                 await message.answer('Принудительное завершение изменения места')
                 await state.clear()
             else:
                 await message.answer('Это не фото')
         else:
-            if message.text.lower() == 'stop':
+            if message.text.lower() == 'стоп':
                 await message.answer('Принудительное завершение добавления места')
                 await state.clear()
             else:
                 await message.answer('Это не фото')
 
-@router_for_places.message(Command('Edit_message'))
-async def edit_messages(message: Message, state: FSMContext):
+@router_for_places.callback_query(InlineMainMenu.filter(F.action=="edit_messages"))
+async def edit_messages(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
     if check_login:
 
         keyboard = await keyboard_fabric.builder_choice()
-        await message.answer('Выберите сообщение, которое вы хотите изменить', reply_markup=keyboard)
+        await callback.message.answer('Выберите сообщение, которое вы хотите изменить', reply_markup=keyboard)
+        await callback.answer()
         await state.set_state(EditMessage.message)
     else:
-        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
+        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
                              'администратора')
 
 
 @router_for_places.message(EditMessage.message)
 async def edit_messages_one(message: Message, state: FSMContext):
     await sqlbase_for_places.connect()
-    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
         await state.clear()
         await sqlbase_for_places.close()
         await message.answer("Принудительно завершён процесс изменения сообщений для клиентского бота.")
@@ -181,29 +189,33 @@ async def edit_messages_one(message: Message, state: FSMContext):
     elif message.text.lower() == 'после оценки':
         await state.update_data(one_message=message.text.lower())
         await state.set_state(EditMessage.update_message)
-    await message.reply('Введите сообщение', reply_markup=ReplyKeyboardRemove())
+    await message.reply('Введите сообщение')
 
 @router_for_places.message(EditMessage.update_message)
 async def edit_messages_too(message: Message, state: FSMContext):
-    if message.text.lower() == 'stop':  # Проверяем, завершил ли пользователь процесс
+    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
         await state.clear()
         await sqlbase_for_places.close()
         await message.answer("Принудительно завершён процесс изменения сообщений для клиентского бота.")
         return
     await state.update_data(msg=message.text)
     data = await state.get_data()
-    if data['one_message'] == 'между оценкой и отзывом':
+    try:
+        kb = await keyboard_fabric.inline_admin_main_menu()
 
-        await sqlbase_for_places.execute_query(
-            '''UPDATE static_message SET review_or_rating_message=$1 WHERE id = 1''', (data['msg'], )
-        )
-        await message.answer('Успешно перезаписано')
+        if data['one_message'] == 'между оценкой и отзывом':
 
-    elif data['one_message'] == 'после оценки':
-        await sqlbase_for_places.execute_query(
-            '''UPDATE static_message SET review_message=$1 WHERE id = 1''', (data['msg'], )
-        )
-        await message.answer('Успешно перезаписано')
+            await sqlbase_for_places.execute_query(
+                '''UPDATE settings_for_review_bot SET review_or_rating_message=$1 WHERE id = 1''', (data['msg'], )
+            )
+
+        elif data['one_message'] == 'после оценки':
+            await sqlbase_for_places.execute_query(
+                '''UPDATE settings_for_review_bot SET review_message=$1 WHERE id = 1''', (data['msg'], )
+            )
+        await message.answer('Успешно перезаписано\nВыберите действие', reply_markup=kb)
+    except Exception:
+        pass
     await sqlbase_for_places.close()
 
 #Удаление места

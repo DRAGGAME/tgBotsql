@@ -55,8 +55,6 @@ class FabricInline(KeyboardFactory):
             ).pack()
         )
 
-
-
     async def inline_admin_main_menu(self):
 
         await self.create_builder_inline()
@@ -103,6 +101,13 @@ class FabricInline(KeyboardFactory):
             ).pack()
         )
 
+        button_edit_message =   InlineKeyboardButton(
+            text="Изменить сообщения клиент-ого бота",
+            callback_data=InlineMainMenu(
+                action="edit_messages",
+            ).pack()
+        )
+
         button_exit = InlineKeyboardButton(
             text="Выйти из супер-администратора",
             callback_data=InlineMainMenu(
@@ -112,13 +117,15 @@ class FabricInline(KeyboardFactory):
 
         self.builder_inline.row(self.button_start)
         self.builder_inline.row(self.button_message_stop)
-        self.builder_inline.add(button_add_admin)
-        self.builder_inline.add(button_add_address)
+        self.builder_inline.row(button_add_admin)
+        self.builder_inline.row(button_add_address)
         self.builder_inline.row(button_edit_place)
         self.builder_inline.row(button_remove_address, button_remove_place)
         self.builder_inline.row(button_new_name)
-        self.builder_inline.row(self.button_create_qr)
+        self.builder_inline.row(button_edit_message)
         self.builder_inline.row(self.button_review)
+        self.builder_inline.row(self.button_generate)
+        self.builder_inline.row(self.button_create_qr)
         self.builder_inline.row(button_exit)
 
         return self.builder_inline.as_markup()
@@ -128,8 +135,8 @@ class FabricInline(KeyboardFactory):
 
         button_login = InlineKeyboardButton(
             text="Войти в аккаунт супер-пользователя",
-            callback_data=InlineAddAdmin(
-                action="login_in_super_admin"
+            callback_data=InlineMainMenu(
+                action="login_in_super_admin",
             ).pack()
         )
 
@@ -151,8 +158,9 @@ class FabricInline(KeyboardFactory):
                                                 input_field_placeholder='Выберите сообщение, которое вы хотите изменить', is_persistent=True)
 
     async def stop(self):
-        await self.create_builder_inline()
+        await self.create_builder_reply()
 
-        self.builder_reply.add(self.button_stop)
+        self.builder_reply.add(KeyboardButton(text="Стоп"))
 
-        return self.builder_inline.as_markup()
+        return self.builder_reply.as_markup(resize_keyboard=True,
+                                                input_field_placeholder='Выберите сообщение, которое вы хотите изменить', is_persistent=True)
