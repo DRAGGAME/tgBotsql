@@ -94,6 +94,20 @@ class FabricInline(KeyboardFactory):
             ).pack()
         )
 
+        button_upd_login = InlineKeyboardButton(
+            text="Обновить пароль",
+            callback_data=InlineMainMenu(
+                action="UpdPassword"
+            ).pack()
+        )
+
+        button_pass_query = InlineKeyboardButton(
+            text="Обновить пароль для заявок",
+            callback_data=InlineMainMenu(
+                action="UpdQueryPassword"
+            ).pack()
+        )
+
         button_new_name = InlineKeyboardButton(
             text="Изменить имя бота, отправляющего отзывы",
             callback_data=InlineMainMenu(
@@ -123,18 +137,19 @@ class FabricInline(KeyboardFactory):
         self.builder_inline.row(button_remove_address, button_remove_place)
         self.builder_inline.row(button_new_name)
         self.builder_inline.row(button_edit_message)
+        self.builder_inline.row(button_upd_login)
+        self.builder_inline.row(button_pass_query)
         self.builder_inline.row(self.button_review)
         self.builder_inline.row(self.button_generate)
         self.builder_inline.row(self.button_create_qr)
         self.builder_inline.row(button_exit)
-
         return self.builder_inline.as_markup()
 
     async def inline_main_menu(self):
         await self.create_builder_inline()
 
         button_login = InlineKeyboardButton(
-            text="Войти в аккаунт супер-пользователя",
+            text="Войти в аккаунт супер-администратора",
             callback_data=InlineMainMenu(
                 action="login_in_super_admin",
             ).pack()
@@ -151,7 +166,6 @@ class FabricInline(KeyboardFactory):
     async def reply_menu(self):
         await self.create_builder_reply()
 
-        self.builder_reply.add(KeyboardButton(text="Войти в супер-пользователя"))
         self.builder_reply.row(KeyboardButton(text="Открыть панель действий"))
 
         return self.builder_reply.as_markup(resize_keyboard=True,

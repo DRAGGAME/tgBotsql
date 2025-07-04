@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import apscheduler
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -18,7 +19,12 @@ router_for_admin = Router()
 sqlbase_for_admin_function = Sqlbase()
 keyboard = FabricInline()
 
+
 class UpdPassword(StatesGroup):
+    newpass = State()
+
+
+class UpdQueryPassword(StatesGroup):
     newpass = State()
 
 
@@ -26,14 +32,20 @@ class LoginState(StatesGroup):
     name = State()
     password = State()
 
-@router_for_admin.message(F.text.lower() == 'exit')
-async def handle_stop(message: Message, state: FSMContext):
+
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action == 'exit'))
+async def handle_stop(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_admin_function.connect()
     await sqlbase_for_admin_function.update_state_admin(False)
     await sqlbase_for_admin_function.close()
-    scheduler.remove_job(job_id="auto_exit")
+    try:
+        scheduler.remove_job(job_id="auto_exit")
+    except apscheduler.jobstores.base.JobLookupError:
+        pass
+    kb = await keyboard.stop()
     await state.clear()
-    await message.answer("Вы вышли из админа")
+    await callback.message.answer("Вы вышли из админа", reply_markup=kb)
+    await callback.answer()
 
 @router_for_admin.callback_query(InlineMainMenu.filter(F.action=="login_in_super_admin"))
 async def login(callback: CallbackQuery, state: FSMContext):
@@ -52,6 +64,24 @@ async def login(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
                          , reply_markup=kb, parse_mode='MARKDOWN')
     await callback.answer()
+    await state.set_state(LoginState.name)
+
+@router_for_admin.message(Command("login"))
+async def login(message: Message, state: FSMContext):
+
+    """
+    Функция для супер-админа
+    :param message:
+    :param state:
+    """
+    await sqlbase_for_admin_function.connect()
+    # Выполнение запроса для получения имени и пароля
+    password = await sqlbase_for_admin_function.execute_query('SELECT superuser_password FROM settings_for_admin;')
+    kb = await keyboard.stop()
+    await state.update_data(password=password[0][0])
+
+    await message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
+                         , reply_markup=kb, parse_mode='MARKDOWN')
     await state.set_state(LoginState.name)
 
 @router_for_admin.message(LoginState.name, F.text)
@@ -80,19 +110,21 @@ async def name(message: Message, state: FSMContext):
         await message.answer('Пароль верный, пропишите /help для полного перечня команд', reply_markup=kb)
 
     else:
-        await message.answer('Пароль неправильный...')
+        await message.answer('Пароль неправильный...\nВведите заново')
 
-@router_for_admin.message(Command('UpdPassword'))
-async def upd(message: Message, state: FSMContext):
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action=="UpdPassword"))
+async def upd(callback: CallbackQuery, state: FSMContext):
     """Изменение пароля"""
     await sqlbase_for_admin_function.connect()
     check_login = await sqlbase_for_admin_function.check_login()
     if check_login:
-        await message.answer('Введите новый пароль')
+        kb = await keyboard.stop()
+        await state.update_data(keyboard_stop=kb)
+        await callback.message.answer('Введите новый пароль', reply_markup=kb)
+        await callback.answer()
         await state.set_state(UpdPassword.newpass)
     else:
-        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
 
 
 @router_for_admin.message(UpdPassword.newpass, F.text)
@@ -100,23 +132,66 @@ async def new_password(message: Message, state: FSMContext):
     """Изменение пароля"""
 
     alt_newpassword = await state.get_value("alt_newpassword")
-
+    kb = await state.get_value("keyboard_stop")
     if alt_newpassword is None:  # Первый ввод пароля
         if message.text.lower() == 'stop':
-            await message.answer("Обновление пароля прервано.")
+            await message.answer("Обновление пароля прервано.", reply_markup=kb)
             await state.clear()
         else:
             await state.update_data(alt_newpassword=message.text)  # Сохраняем первый ввод
-            await message.answer('Введите ещё раз новый пароль, чтобы подтвердить.')
+            await message.answer('Введите ещё раз новый пароль, чтобы подтвердить.', reply_markup=kb)
     else:  # Второй ввод пароля
         if message.text.lower() == 'stop':
             await message.answer("Обновление пароля прервано.")
             await state.clear()
         elif alt_newpassword == message.text: #При совпадении пароля
-            query = 'UPDATE setting_for_admin SET superuser_password = $1 WHERE id = 1;'
+            query = 'UPDATE settings_for_admin SET superuser_password = $1 WHERE id = 1;'
             await sqlbase_for_admin_function.execute_query(query, params=(alt_newpassword,))
-            await message.answer('Пароль успешно обновлён!')
+
+            await message.answer('Пароль успешно обновлён!', reply_markup=kb)
             await state.clear()
         else:  # Если пароли не совпадают
-            await message.answer('Пароли не совпадают. Повторите ввод нового пароля.')
+            await message.answer('Пароли не совпадают. Повторите ввод нового пароля.', reply_markup=kb)
+            await state.set_state(UpdPassword.newpass)  # Возвращаем в текущее состояние
+
+
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action=="UpdQueryPassword"))
+async def update_query(callback: CallbackQuery, state: FSMContext):
+    """Изменение пароля"""
+    await sqlbase_for_admin_function.connect()
+    check_login = await sqlbase_for_admin_function.check_login()
+    if check_login:
+        kb = await keyboard.stop()
+        await state.update_data(keyboard_stop=kb)
+        await callback.message.answer('Введите новый пароль для заявок', reply_markup=kb)
+        await callback.answer()
+        await state.set_state(UpdQueryPassword.newpass)
+    else:
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
+
+@router_for_admin.message(UpdQueryPassword.newpass, F.text)
+async def new_password(message: Message, state: FSMContext):
+    """Изменение пароля"""
+
+    alt_newpassword = await state.get_value("alt_newpassword")
+    kb = await state.get_value("keyboard_stop")
+    if alt_newpassword is None:  # Первый ввод пароля
+        if message.text.lower() == 'stop':
+            await message.answer("Обновление пароля прервано.", reply_markup=kb)
+            await state.clear()
+        else:
+            await state.update_data(alt_newpassword=message.text)  # Сохраняем первый ввод
+            await message.answer('Введите ещё раз новый пароль, чтобы подтвердить.', reply_markup=kb)
+    else:  # Второй ввод пароля
+        if message.text.lower() == 'stop':
+            await message.answer("Обновление пароля прервано.")
+            await state.clear()
+        elif alt_newpassword == message.text: #При совпадении пароля
+            query = 'UPDATE settings_for_admin SET password_query = $1 WHERE id = 1;'
+            await sqlbase_for_admin_function.execute_query(query, params=(alt_newpassword,))
+
+            await message.answer('Пароль успешно обновлён!', reply_markup=kb)
+            await state.clear()
+        else:  # Если пароли не совпадают
+            await message.answer('Пароли не совпадают. Повторите ввод нового пароля.', reply_markup=kb)
             await state.set_state(UpdPassword.newpass)  # Возвращаем в текущее состояние

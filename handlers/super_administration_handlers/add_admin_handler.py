@@ -36,8 +36,7 @@ async def adds_admins(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.answer("Новые заявки отсутствуют")
     else:
-        await callback.message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.message.answer('Вы не супер-администратор, у вас нет этой функции')
 
 @router_add_admins.callback_query(InlineAddAdmin.filter(F.action.in_(["accept", "reject", ])))
 async def add_admins_handler(callback: CallbackQuery, callback_data: InlineAddAdmin, state: FSMContext):

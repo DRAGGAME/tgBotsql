@@ -6,7 +6,7 @@ from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery, BufferedInputFile
+from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery, BufferedInputFile, KeyboardButton
 
 from config import bot
 from db.db import Sqlbase
@@ -58,8 +58,7 @@ async def start_address(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.set_state(Address.address)
     else:
-        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
 
 
 #Для названия
@@ -178,8 +177,7 @@ async def edit_messages(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.set_state(EditMessage.message)
     else:
-        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
 
 
 @router_for_places.message(EditMessage.message)
@@ -243,8 +241,7 @@ async def remove_place(message: Message, state: FSMContext):
                              f'\nВот все названия заведений:\n{variantes}', parse_mode='Markdown' )
         await state.set_state(RemovePA.place)
     else:
-        await message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await message.answer('Вы не супер-администратор, у вас нет этой функции')
 
 #Удаление по месту
 @router_for_places.message(RemovePA.place, F.text)
@@ -274,14 +271,14 @@ async def update_place(callback: CallbackQuery, state: FSMContext):
         n = ""
         mesage = await place_for(sqlbase_for_places)
         await state.update_data(local=mesage)
+        kb = await keyboard_fabric.stop()
         for i in mesage:
             n += f'{mesage[i]}({i})\n'
-        await callback.message.answer(f'Какое место вы хотите изменить. Ниже приведён список мест(Введите цифру):\n{n}')
+        await callback.message.answer(f'Какое место вы хотите изменить. Ниже приведён список мест(Введите цифру):\n{n}', reply_markup=kb)
         await callback.answer()
         await state.set_state(UpdateAddress.name)
     else:
-        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
 
 @router_for_places.message(UpdateAddress.name, F.text)
 async def update_address_one(message: Message, state: FSMContext):
@@ -319,6 +316,7 @@ async def update_address_one(message: Message, state: FSMContext):
                     [types.KeyboardButton(text='Адрес'), types.KeyboardButton(text='Место')],
                     [types.KeyboardButton(text='Сообщение')],
                     [types.KeyboardButton(text='Фото')],
+                    [types.KeyboardButton(text="Стоп")]
                 ]
                 keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True,
                                                      input_field_placeholder='Выберите')
@@ -434,8 +432,7 @@ async def remove_place(callback: CallbackQuery, state: FSMContext):
 
         await state.set_state(RemovePA.address)
     else:
-        await callback.message.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.message.answer('Вы не супер-администратор, у вас нет этой функции')
 
 @router_for_places.message(RemovePA.address, F.text)
 async def remove_places(message: Message, state: FSMContext):
@@ -473,8 +470,7 @@ async def remove_place(callback: CallbackQuery, state: FSMContext):
 
         await state.set_state(RemovePA.place)
     else:
-        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
 
 #Удаление по месту
 @router_for_places.message(RemovePA.place, F.text)

@@ -38,8 +38,7 @@ async def new_name(callback: CallbackQuery, state: FSMContext):
         await state.set_state(NameBot.name)
 
     else:
-        await callback.answer('Ошибка: вы не администратор. Напишите /Login - чтобы начать процесс входа в аккаунт '
-                             'администратора')
+        await callback.answer('Вы не супер-администратор, у вас нет этой функции')
 
 @router_for_admin_function.message(NameBot.name, F.text)
 async def name(message: Message, state: FSMContext):

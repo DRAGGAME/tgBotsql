@@ -10,6 +10,7 @@ from config import bot
 from db.connect_sqlbase_for_sheduler import sqlbase_for_scheduler
 from db.create_table import CreateTable
 from handlers.administrarion_handlers.function_for_admin import router_admin_function
+from handlers.stop_handler import router_for_stop
 from handlers.super_administration_handlers.add_admin_handler import router_add_admins
 from handlers.super_administration_handlers.address_handlers import router_for_places
 from handlers.super_administration_handlers.super_admin_function import router_for_admin_function
@@ -26,8 +27,8 @@ logging.basicConfig(level=logging.DEBUG,
 
 dp = Dispatcher()
 
-dp.include_routers( user_router, router_add_admins, router_for_places, router_for_admin, router_for_admin_function,
-                    router_admin_function)
+dp.include_routers(user_router, router_add_admins, router_for_places, router_for_admin, router_for_admin_function,
+                   router_admin_function, router_for_stop)
 
 async def main():
     """

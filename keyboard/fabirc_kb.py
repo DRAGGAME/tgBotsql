@@ -72,7 +72,7 @@ class KeyboardFactory:
 
         self.builder_reply.row(KeyboardButton(text="Между оценкой и отзывом"))
         self.builder_reply.row(KeyboardButton(text="После оценки"))
-
+        self.builder_reply.row(KeyboardButton(text="Стоп"))
         choice_keyboard = self.builder_reply.as_markup(resize_keyboard=True,
                                                 input_field_placeholder='Выберите сообщение, которое вы хотите изменить', is_persistent=True)
 

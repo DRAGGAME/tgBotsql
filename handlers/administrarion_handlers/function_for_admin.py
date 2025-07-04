@@ -35,7 +35,7 @@ class QrR(StatesGroup):
 @router_admin_function.message(F.text.lower() == "открыть панель действий")
 async def action_menu(message: Message, state: FSMContext):
     await sqlbase.connect()
-    admin_list = await sqlbase.execute_query("""SELECT chat_id FROM admin_list_table""")
+    admin_list = await sqlbase.execute_query("""SELECT chat_id FROM admin_list_table WHERE activate=True""")
     chat_id = message.chat.id
     for admin in admin_list:
         if str(chat_id) == admin[0]:

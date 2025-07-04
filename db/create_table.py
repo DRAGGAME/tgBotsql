@@ -37,12 +37,13 @@ class CreateTable(Sqlbase):
 
         review_or_rating = 'Оценка принята. Если вы желаете написать отзыв, то напишите "Да", если нет, то "Нет".'
         review_message = 'Напишите, пожалуйста, отзыв'
-
-        await self.execute_query(
-            '''INSERT INTO settings_for_review_bot (review_or_rating_message, review_message) 
-               VALUES ($1, $2)''',
-            (review_or_rating, review_message)
-        )
+        select = await self.execute_query("""SELECT * FROM settings_for_review_bot""")
+        if not select:
+            await self.execute_query(
+                '''INSERT INTO settings_for_review_bot (review_or_rating_message, review_message) 
+                   VALUES ($1, $2)''',
+                (review_or_rating, review_message)
+            )
 
 
     async def create_table_adm_settings(self) -> None:
@@ -58,7 +59,7 @@ class CreateTable(Sqlbase):
 
         await self.execute_query(query)
         select = await self.execute_query("""SELECT * FROM settings_for_admin""")
-        if select is None:
+        if not select:
             await self.execute_query('''INSERT INTO settings_for_admin DEFAULT VALUES;''')
 
     async def create_table_admin_users(self) -> None:
