@@ -161,6 +161,7 @@ class FabricInline(KeyboardFactory):
         await self.create_builder_reply()
 
         self.builder_reply.add(KeyboardButton(text="Стоп"))
+        self.builder_reply.row(KeyboardButton(text="Открыть панель действий"))
 
         return self.builder_reply.as_markup(resize_keyboard=True,
                                                 input_field_placeholder='Выберите сообщение, которое вы хотите изменить', is_persistent=True)
