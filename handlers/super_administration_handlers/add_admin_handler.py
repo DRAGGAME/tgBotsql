@@ -111,10 +111,13 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
             dict_admin |= add_admin
 
         await state.update_data(admin_data=admin_data)
+        await state.set_state(DeleteAdmin.admin)
         await callback.message.answer(f"Введите цифру, чей аккаунт администртора вы хотите удалить: \n{message}")
         await callback.answer()
     else:
+        await sqlbase_add_admins.close()
         await callback.message.answer("Вы не администратор")
+        await state.clear()
         await callback.answer()
 
 @router_add_admins.message(F.text, DeleteAdmin.admin)
@@ -125,8 +128,11 @@ async def delete_admin_two(message: Message, state: FSMContext):
             await sqlbase_add_admins.delete_admins(data.get(message.text)[1])
             await message.answer("Аккаунт удалён")
             await state.clear()
+            await sqlbase_add_admins.close()
             await bot.send_message(chat_id=data.get(message.text)[1], text="Ваш аккаунт удалён из администраторов")
         except Exception as e:
+            await state.clear()
+            await sqlbase_add_admins.close()
             await message.answer(f"Ошибка: {e}")
     else:
-        await message.answer("Такого аккаунта нет!")
+        await message.answer("Такого аккаунта нет! Введите снова:")
