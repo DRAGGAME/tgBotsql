@@ -20,7 +20,7 @@ async def start_cmd(chat_id: str, pool_sqlbase: Sqlbase):
     for review in reviews:
         true_review = "Нет" if review[6] is None else review[6]
         message = (f"Дата: {review[2]}\n"
-                   f"Место: {review[3]}\n"
+                   f"Место: {review[4]}\n"
                    f"Пользователь: {review[1]}\n"
                    f"Рейтинг: {review[5]}\n"
                    f"Отзыв: {true_review}")
