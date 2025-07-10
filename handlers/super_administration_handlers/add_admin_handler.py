@@ -3,7 +3,8 @@ import asyncio
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.types import CallbackQuery, Message
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import bot
@@ -19,12 +20,17 @@ router_add_admins = Router()
 sqlbase_add_admins = Sqlbase()
 
 
+class DeleteAdmin(StatesGroup):
+    admin = State()
+
+
 @router_add_admins.callback_query(InlineMainMenu.filter(F.action == 'bid_for_admin'))
 async def adds_admins(callback: CallbackQuery, state: FSMContext):
     """Добавление админов"""
     await sqlbase_add_admins.connect()
     check_login = await sqlbase_add_admins.check_login()
-    if check_login:
+    check_chat = await sqlbase_add_admins.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat == callback.message.chat.id:
         not_active_accounts = await sqlbase_add_admins.execute_query(
             """SELECT username, chat_id FROM admin_list_table WHERE activate=False""")
         if not_active_accounts:
@@ -84,3 +90,38 @@ async def add_admins_handler(callback: CallbackQuery, callback_data: InlineAddAd
             await callback.message.edit_text("Все аккаунты проверены")
             await asyncio.sleep(3)
             await callback.message.delete()
+
+
+@router_add_admins.callback_query(InlineMainMenu.filter(F.action == "delete_admin"))
+async def delete_admin(callback: CallbackQuery, state: FSMContext):
+    await sqlbase_add_admins.connect()
+    check_login = await sqlbase_add_admins.check_login()
+    check_chat = await sqlbase_add_admins.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat == callback.message.chat.id:
+        admins = await sqlbase_add_admins.execute_query(
+            """SELECT username, chat_id FROM admin_list_table WHERE activate=True""")
+        if admins is None:
+            await callback.answer("Нет действующих администраторов")
+        dict_admin: dict = {}
+        message = ''
+        for count, admin_data in enumerate(admins):
+            message += f"{count}) {admin_data[0]}\n"
+            dict_admin.update(count, admin_data)
+
+        await state.update_data(admin_data=admin_data)
+        await callback.message.answer(f"Введите цифру, чей аккаунт администртора вы хотите удалить: \n{message}")
+
+
+@router_add_admins.message(F.text, DeleteAdmin.admin)
+async def delete_admin_two(message: Message, state: FSMContext):
+    data: dict = await state.get_value("admin_data")
+    if data.get(message.text):
+        try:
+            await sqlbase_add_admins.delete_admins(data.get(message.text)[1])
+            await message.answer("Аккаунт удалён")
+            await state.clear()
+            await bot.send_message(chat_id=data.get(message.text)[1], text="Ваш аккаунт удалён из администраторов")
+        except Exception as e:
+            await message.answer(f"Ошибка: {e}")
+    else:
+        await message.answer("Такого аккаунта нет!")

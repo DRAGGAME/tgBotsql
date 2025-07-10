@@ -66,6 +66,13 @@ class FabricInline(KeyboardFactory):
             ).pack()
         )
 
+        button_delete_admin = InlineKeyboardButton(
+            text="Удалить администратора",
+            callback_data=InlineMainMenu(
+                action="delete_admin"
+            ).pack()
+        )
+
         button_add_address = InlineKeyboardButton(
             text="Добавить место",
             callback_data=InlineMainMenu(
@@ -132,6 +139,7 @@ class FabricInline(KeyboardFactory):
         self.builder_inline.row(self.button_start)
         self.builder_inline.row(self.button_message_stop)
         self.builder_inline.row(button_add_admin)
+        self.builder_inline.row(button_delete_admin)
         self.builder_inline.row(button_add_address)
         self.builder_inline.row(button_edit_place)
         self.builder_inline.row(button_remove_address, button_remove_place)
