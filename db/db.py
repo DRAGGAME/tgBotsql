@@ -54,7 +54,7 @@ class Sqlbase:
         active = True
         if chat_id == 0:
             active = False
-        await self.execute_query("""UPDATE settings_for_admin SET superuser_active = $1, superuser_chat_id=$2';""",
+        await self.execute_query("""UPDATE settings_for_admin SET superuser_active = $1, superuser_chat_id=$2;""",
                                  (active, str(chat_id),))
 
     async def update_inactive(self, inactive: bool, chat_id: int):
