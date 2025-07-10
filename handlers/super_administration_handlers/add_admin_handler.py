@@ -97,11 +97,12 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
     await sqlbase_add_admins.connect()
     check_login = await sqlbase_add_admins.check_login()
     check_chat = await sqlbase_add_admins.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
-    if check_login and check_chat == callback.message.chat.id:
+    if check_login and check_chat == str(callback.message.chat.id):
         admins = await sqlbase_add_admins.execute_query(
             """SELECT username, chat_id FROM admin_list_table WHERE activate=True""")
         if admins is None:
             await callback.answer("Нет действующих администраторов")
+            return
         dict_admin: dict = {}
         message = ''
         for count, admin_data in enumerate(admins):
@@ -110,7 +111,9 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
 
         await state.update_data(admin_data=admin_data)
         await callback.message.answer(f"Введите цифру, чей аккаунт администртора вы хотите удалить: \n{message}")
-
+        await callback.answer()
+    else:
+        await callback.message.answer("Вы не администратор")
 
 @router_add_admins.message(F.text, DeleteAdmin.admin)
 async def delete_admin_two(message: Message, state: FSMContext):
