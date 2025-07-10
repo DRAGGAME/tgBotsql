@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
@@ -120,9 +121,11 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
         await state.clear()
         await callback.answer()
 
+
 @router_add_admins.message(F.text, DeleteAdmin.admin)
 async def delete_admin_two(message: Message, state: FSMContext):
     data: dict = await state.get_value("admin_data")
+    logging.info(data.get(message.text)[1])
     if data.get(message.text):
         try:
             await sqlbase_add_admins.delete_admins(data.get(message.text)[1])
