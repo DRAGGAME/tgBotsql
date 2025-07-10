@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 import apscheduler
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -10,7 +11,6 @@ from apscheduler.jobstores.base import ConflictingIdError
 from apscheduler.triggers.date import DateTrigger
 
 from db.db import Sqlbase
-from handlers.super_administration_handlers.address_handlers import messages
 from keyboard.menu_fabric import InlineMainMenu, FabricInline
 from schedulers.auto_exit import auto_exit
 from schedulers.scheduler_object import scheduler
@@ -36,7 +36,7 @@ class LoginState(StatesGroup):
 @router_for_admin.callback_query(InlineMainMenu.filter(F.action == 'exit'))
 async def handle_stop(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_admin_function.connect()
-    await sqlbase_for_admin_function.update_state_admin(False)
+    await sqlbase_for_admin_function.update_state_admin(0)
     await sqlbase_for_admin_function.close()
     try:
         scheduler.remove_job(job_id="auto_exit")
@@ -47,9 +47,9 @@ async def handle_stop(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Вы вышли из админа", reply_markup=kb)
     await callback.answer()
 
-@router_for_admin.callback_query(InlineMainMenu.filter(F.action=="login_in_super_admin"))
-async def login(callback: CallbackQuery, state: FSMContext):
 
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action == "login_in_super_admin"))
+async def login(callback: CallbackQuery, state: FSMContext):
     """
     Функция для супер-админа
     :param callback:
@@ -57,18 +57,42 @@ async def login(callback: CallbackQuery, state: FSMContext):
     """
     await sqlbase_for_admin_function.connect()
     # Выполнение запроса для получения имени и пароля
-    password = await sqlbase_for_admin_function.execute_query('SELECT superuser_password FROM settings_for_admin;')
-    kb = await keyboard.stop()
-    await state.update_data(password=password[0][0])
+    password = await sqlbase_for_admin_function.execute_query(
+        'SELECT superuser_active, superuser_chat_id, superuser_password FROM settings_for_admin;')
 
-    await callback.message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
-                         , reply_markup=kb, parse_mode='MARKDOWN')
-    await callback.answer()
-    await state.set_state(LoginState.name)
+    kb_super_admin = await keyboard.inline_admin_main_menu()
+    kb_admin = await keyboard.inline_main_menu()
+    if password[0][0] and password[0][1] == str(callback.message.chat.id):
+        try:
+            await callback.message.edit_text("Вы уже супер-администратор\nВыберите действие:",
+                                             reply_markup=kb_super_admin)
+        except TelegramBadRequest:
+            pass
+        await sqlbase_for_admin_function.close()
+        return
+
+    elif password[0][0]:
+        try:
+            await callback.message.answer("Кто-то другой под аккаунтом супер-администратора.\nВход - невозможен",
+                                          reply_markup=kb_admin)
+        except TelegramBadRequest:
+            pass
+        await sqlbase_for_admin_function.close()
+        return
+
+    else:
+        kb = await keyboard.stop()
+        await state.update_data(password=password[0][2])
+
+        await callback.message.answer(
+            '*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
+            , reply_markup=kb, parse_mode='MARKDOWN')
+        await callback.answer()
+        await state.set_state(LoginState.name)
+
 
 @router_for_admin.message(Command("login"))
-async def login(message: Message, state: FSMContext):
-
+async def login_default(message: Message, state: FSMContext):
     """
     Функция для супер-админа
     :param message:
@@ -76,29 +100,46 @@ async def login(message: Message, state: FSMContext):
     """
     await sqlbase_for_admin_function.connect()
     # Выполнение запроса для получения имени и пароля
-    password = await sqlbase_for_admin_function.execute_query('SELECT superuser_password FROM settings_for_admin;')
-    kb = await keyboard.stop()
-    await state.update_data(password=password[0][0])
+    password = await sqlbase_for_admin_function.execute_query(
+        'SELECT superuser_active, superuser_chat_id, superuser_password FROM settings_for_admin;')
 
-    await message.answer('*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
-                         , reply_markup=kb, parse_mode='MARKDOWN')
-    await state.set_state(LoginState.name)
-
-@router_for_admin.message(LoginState.name, F.text)
-async def name(message: Message, state: FSMContext):
-
-    user_password = message.text
-    password = await state.get_value("password")
-
-    if message.text.lower() == 'стоп':
-        kb = await keyboard.inline_main_menu()
-        await message.answer('Вход завершён принудительно, выберите действие', reply_markup=kb)
-        await state.clear()
+    kb_super_admin = await keyboard.inline_admin_main_menu()
+    kb_admin = await keyboard.inline_main_menu()
+    if password[0][0] and password[0][1] == str(message.chat.id):
+        try:
+            await message.edit_text("Вы уже супер-администратор\nВыберите действие:",
+                                    reply_markup=kb_super_admin)
+        except TelegramBadRequest:
+            pass
         await sqlbase_for_admin_function.close()
         return
 
+    elif password[0][0]:
+        try:
+            await message.answer("Кто-то другой под аккаунтом супер-администратора.\nВход - невозможен",
+                                 reply_markup=kb_admin)
+        except TelegramBadRequest:
+            pass
+        await sqlbase_for_admin_function.close()
+        return
+
+    else:
+        kb = await keyboard.stop()
+        await state.update_data(password=password[0][2])
+
+        await message.answer(
+            '*ВНИМАНИЕ*, в аккаунт супер-администратора, может зайти *ТОЛЬКО* один человек\n\nВведите пароль:'
+            , reply_markup=kb, parse_mode='MARKDOWN')
+        await state.set_state(LoginState.name)
+
+
+@router_for_admin.message(LoginState.name, F.text)
+async def name(message: Message, state: FSMContext):
+    user_password = message.text
+    password = await state.get_value("password")
+
     if user_password == password:
-        await sqlbase_for_admin_function.update_state_admin(True)
+        await sqlbase_for_admin_function.update_state_admin(message.chat.id)
         await sqlbase_for_admin_function.close()
         kb = await keyboard.inline_admin_main_menu()
         try:
@@ -112,7 +153,8 @@ async def name(message: Message, state: FSMContext):
     else:
         await message.answer('Пароль неправильный...\nВведите заново')
 
-@router_for_admin.callback_query(InlineMainMenu.filter(F.action=="UpdPassword"))
+
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action == "UpdPassword"))
 async def upd(callback: CallbackQuery, state: FSMContext):
     """Изменение пароля"""
     await sqlbase_for_admin_function.connect()
@@ -144,7 +186,7 @@ async def new_password(message: Message, state: FSMContext):
         if message.text.lower() == 'stop':
             await message.answer("Обновление пароля прервано.")
             await state.clear()
-        elif alt_newpassword == message.text: #При совпадении пароля
+        elif alt_newpassword == message.text:  # При совпадении пароля
             query = 'UPDATE settings_for_admin SET superuser_password = $1 WHERE id = 1;'
             await sqlbase_for_admin_function.execute_query(query, params=(alt_newpassword,))
 
@@ -155,7 +197,7 @@ async def new_password(message: Message, state: FSMContext):
             await state.set_state(UpdPassword.newpass)  # Возвращаем в текущее состояние
 
 
-@router_for_admin.callback_query(InlineMainMenu.filter(F.action=="UpdQueryPassword"))
+@router_for_admin.callback_query(InlineMainMenu.filter(F.action == "UpdQueryPassword"))
 async def update_query(callback: CallbackQuery, state: FSMContext):
     """Изменение пароля"""
     await sqlbase_for_admin_function.connect()
@@ -168,6 +210,7 @@ async def update_query(callback: CallbackQuery, state: FSMContext):
         await state.set_state(UpdQueryPassword.newpass)
     else:
         await callback.answer('Вы не супер-администратор, у вас нет этой функции')
+
 
 @router_for_admin.message(UpdQueryPassword.newpass, F.text)
 async def new_password(message: Message, state: FSMContext):
@@ -186,7 +229,7 @@ async def new_password(message: Message, state: FSMContext):
         if message.text.lower() == 'stop':
             await message.answer("Обновление пароля прервано.")
             await state.clear()
-        elif alt_newpassword == message.text: #При совпадении пароля
+        elif alt_newpassword == message.text:  # При совпадении пароля
             query = 'UPDATE settings_for_admin SET password_query = $1 WHERE id = 1;'
             await sqlbase_for_admin_function.execute_query(query, params=(alt_newpassword,))
 

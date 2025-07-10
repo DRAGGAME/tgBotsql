@@ -3,9 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - pip>=21.0.1
-  - setuptools>=51.00.0
-  - python>=3.10.0
+  - python >=3.10,<3.12
+  - pip >=21.0.1
+  - setuptools >=51.0.0
   - asyncpg
   - pandas
   - qrcode
@@ -13,7 +13,8 @@ dependencies:
   - apscheduler
   - matplotlib
   - pip:
-#    - python-dotenv
-    - transliterate
-    - aiogram>3.1.0
-prefix: c:/Users/schowm/anaconda3/envs/telegramAdm
+      - python-dotenv
+      - transliterate
+      - aiogram >3.3.0 # ⬅ укажи разумный диапазон, если не нужна bleeding-edge версия
+
+#prefix: c:/Users/schowm/anaconda3/envs/telegramAdm

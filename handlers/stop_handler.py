@@ -1,7 +1,6 @@
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-from aiogram.utils.formatting import Text
 
 from db.db import Sqlbase
 from handlers.super_administration_handlers.all_a_administraors_handler import keyboard
@@ -10,6 +9,8 @@ from keyboard.menu_fabric import FabricInline
 keyboard_fabric = FabricInline()
 router_for_stop = Router()
 sqlbase = Sqlbase()
+
+
 @router_for_stop.message(F.text.lower() == "стоп")
 async def stop_message(message: Message, state: FSMContext):
     """

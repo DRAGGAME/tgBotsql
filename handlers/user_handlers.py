@@ -1,11 +1,10 @@
 from aiogram import Router, F
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message
 
 from db.db import Sqlbase
-from keyboard.fabirc_kb import KeyboardFactory
 from keyboard.menu_fabric import FabricInline
 
 
@@ -18,14 +17,16 @@ user_router = Router()
 user_sqlbase = Sqlbase()
 keyboard = FabricInline()
 
-@user_router.message(F.text.lower()=='отправить новую заявку')
+
+@user_router.message(F.text.lower() == 'отправить новую заявку')
 @user_router.message(CommandStart())
 async def check_user_in_admin(message: Message, state: FSMContext):
     chat_id = message.chat.id
 
     await user_sqlbase.connect()
 
-    check_user = await user_sqlbase.execute_query("""SELECT * FROM admin_list_table WHERE chat_id=$1""", (str(chat_id), ))
+    check_user = await user_sqlbase.execute_query("""SELECT * FROM admin_list_table WHERE chat_id=$1""",
+                                                  (str(chat_id),))
     if check_user:
         kb = await keyboard.reply_menu()
         await message.answer("Вы уже записаны", reply_markup=kb)
@@ -38,18 +39,18 @@ async def check_user_in_admin(message: Message, state: FSMContext):
                              'то заранее измените настройки конфиденциальности, в разделе "О себе", измените выбор на "Все"',
                              reply_markup=kb)
 
+
 @user_router.message(AnswerForAdmin.accept, F.text.lower().contains('да'))
 async def yes_for_answer(message: Message, state: FSMContext):
-
     password_session = await user_sqlbase.execute_query("""SELECT password_query FROM settings_for_admin""")
     await state.update_data(password=password_session[0][0])
     await state.set_state(AnswerForAdmin.password)
     await message.answer("Введите пароль для возможности отправки заявки")
 
-@user_router.message(AnswerForAdmin.password)
-@user_router.message(F.text.lower()=='отправить')
-async def password_state(message: Message, state: FSMContext):
 
+@user_router.message(AnswerForAdmin.password)
+@user_router.message(F.text.lower() == 'отправить')
+async def password_state(message: Message, state: FSMContext):
     if not message.text:
         await message.answer("Это сообщение - не текст")
         return
@@ -72,8 +73,9 @@ async def password_state(message: Message, state: FSMContext):
         if username is None:
             kb = await keyboard.builder_reply_query()
             await state.update_data(user_password=user_password)
-            await message.answer('Ваше имя пользователя скрыто, мы не можем отправить запрос, измените настройку и кнопку "отправить"'
-                                 , reply_markup=kb)
+            await message.answer(
+                'Ваше имя пользователя скрыто, мы не можем отправить запрос, измените настройку и кнопку "отправить"'
+                , reply_markup=kb)
             return
 
         await state.clear()

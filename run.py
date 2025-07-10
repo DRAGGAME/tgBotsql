@@ -1,9 +1,7 @@
-import logging
 import asyncio
+import logging
 
 from aiogram import Dispatcher
-from aiogram.filters import Command
-from aiogram.types import Message
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import bot
@@ -13,22 +11,23 @@ from handlers.administrarion_handlers.function_for_admin import router_admin_fun
 from handlers.stop_handler import router_for_stop
 from handlers.super_administration_handlers.add_admin_handler import router_add_admins
 from handlers.super_administration_handlers.address_handlers import router_for_places
-from handlers.super_administration_handlers.super_admin_function import router_for_admin_function
 from handlers.super_administration_handlers.all_a_administraors_handler import router_for_admin
-from schedulers.backid import back_id
-from schedulers.starts import start_cmd
+from handlers.super_administration_handlers.super_admin_function import router_for_admin_function
 from handlers.user_handlers import user_router
+from schedulers.backid import back_id
 from schedulers.scheduler_object import scheduler
+from schedulers.starts import start_cmd
 
 logging.basicConfig(level=logging.DEBUG,
                     format='[%(asctime)s] #%(levelname)-4s %(filename)s:'
-                    '%(lineno)d - %(name)s - %(message)s'
+                           '%(lineno)d - %(name)s - %(message)s'
                     )
 
 dp = Dispatcher()
+dp.include_routers(router_for_stop, user_router, router_add_admins, router_for_places, router_for_admin,
+                   router_for_admin_function,
+                   router_admin_function)
 
-dp.include_routers(user_router, router_add_admins, router_for_places, router_for_admin, router_for_admin_function,
-                   router_admin_function, router_for_stop)
 
 async def main():
     """
@@ -53,15 +52,18 @@ async def main():
         )
         if chat_ids:
             for chat_id in chat_ids[0]:
-                if chat_id not in (None, ):
-                    scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=[str(chat_id), sqlbase_for_scheduler], id=str(chat_id))
-                    scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_scheduler, str(chat_id)), id=f'id_back{chat_id}')
+                if chat_id not in (None,):
+                    scheduler.add_job(start_cmd, IntervalTrigger(minutes=1), args=[str(chat_id), sqlbase_for_scheduler],
+                                      id=str(chat_id))
+                    scheduler.add_job(back_id, IntervalTrigger(minutes=45), args=(sqlbase_for_scheduler, str(chat_id)),
+                                      id=f'id_back{chat_id}')
 
         scheduler.start()  # Запускаем шедулер
         await dp.start_polling(bot)  # Запускаем бота
 
     finally:
         scheduler.shutdown()  # Останавливаем APScheduler
+
 
 if __name__ == '__main__':
     try:

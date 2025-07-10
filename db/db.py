@@ -1,6 +1,5 @@
-import asyncio
 import asyncpg
-import os
+
 # Загружаем переменные из .env
 from config import HOST, PASSWORD, DATABASE, USER
 
@@ -32,7 +31,6 @@ class Sqlbase:
         if self.pool:
             await self.pool.close()
 
-
     async def execute_query(self, query, params=None) -> tuple:
         if not self.pool:
             raise ValueError("Пул соединений не создан. Убедитесь, что вызвали connect().")
@@ -49,20 +47,26 @@ class Sqlbase:
             raise
 
     async def insert_new_query(self, chat_id: int, username: str):
-        await self.execute_query("""INSERT INTO admin_list_table (chat_id, Username) VALUES ($1, $2)""", (str(chat_id), username))
+        await self.execute_query("""INSERT INTO admin_list_table (chat_id, Username) VALUES ($1, $2)""",
+                                 (str(chat_id), username))
 
-    async def update_state_admin(self, superuser_active: bool):
-        await self.execute_query("""UPDATE settings_for_admin SET superuser_active = $1;""", (superuser_active,))
+    async def update_state_admin(self, chat_id: int):
+        active = True
+        if chat_id == 0:
+            active = False
+        await self.execute_query("""UPDATE settings_for_admin SET superuser_active = $1, superuser_chat_id=$2';""",
+                                 (active, str(chat_id),))
 
     async def update_inactive(self, inactive: bool, chat_id: int):
-        if chat_id!=0:
+        if chat_id != 0:
             await self.execute_query("""UPDATE admin_list_table SET activate=$1 WHERE chat_id=$2""",
-                                               (inactive, str(chat_id), ))
+                                     (inactive, str(chat_id),))
         else:
             await self.execute_query("""UPDATE admin_list_table SET activate=$1""",
-                                               (inactive, ))
+                                     (inactive,))
+
     async def delete_admins(self, chat_id: int):
-        await self.execute_query("""DELETE FROM admin_list_table WHERE chat_id=$1""", (str(chat_id), ))
+        await self.execute_query("""DELETE FROM admin_list_table WHERE chat_id=$1""", (str(chat_id),))
 
     async def check_login(self) -> bool:
         check_active = await self.execute_query("""SELECT superuser_active FROM settings_for_admin""")
@@ -82,4 +86,3 @@ class Sqlbase:
 
 if __name__ == '__main__':
     sqlbase = Sqlbase()
-

@@ -45,7 +45,6 @@ class CreateTable(Sqlbase):
                 (review_or_rating, review_message)
             )
 
-
     async def create_table_adm_settings(self) -> None:
         """
         Создание таблицы для настроек связанных с админами
@@ -53,6 +52,7 @@ class CreateTable(Sqlbase):
         query = '''CREATE TABLE IF NOT EXISTS settings_for_admin (
             Id SERIAL PRIMARY KEY,
             superuser_password TEXT DEFAULT 12345,
+            superuser_chat_id TEXT,
             superuser_active BOOLEAN DEFAULT FALSE,
             password_query TEXT DEFAULT 123,
             bot_name TEXT);'''
@@ -87,6 +87,3 @@ class CreateTable(Sqlbase):
                     message TEXT NOT NULL,
                     photo BYTEA NOT NULL,
                     place TEXT NOT NULL);''')
-
-
-
