@@ -124,7 +124,7 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
 
 @router_add_admins.message(F.text, DeleteAdmin.admin)
 async def delete_admin_two(message: Message, state: FSMContext):
-    data: dict = await state.get_value("admin_data")
+    data = await state.get_value("admin_data")
     logging.info(data.get(message.text)[1])
     if data.get(message.text):
         try:
