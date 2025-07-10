@@ -98,22 +98,26 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
     await sqlbase_add_admins.connect()
     check_login = await sqlbase_add_admins.check_login()
     check_chat = await sqlbase_add_admins.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+
     if check_login is True and check_chat[0][0] == str(callback.message.chat.id):
         admins = await sqlbase_add_admins.execute_query(
-            """SELECT username, chat_id FROM admin_list_table WHERE activate=True""")
-        if admins is None:
+            """SELECT username, chat_id FROM admin_list_table WHERE activate=True"""
+        )
+        if not admins:
             await callback.answer("Нет действующих администраторов")
             return
-        dict_admin: dict = {}
+
+        dict_admin = {}
         message = ''
         for count, admin_data in enumerate(admins):
             message += f"{count}) {admin_data[0]}\n"
-            add_admin = {count: admin_data}
-            dict_admin |= add_admin
+            dict_admin[str(count)] = admin_data  # ключи обязательно строки
 
-        await state.update_data(admin_data=admin_data)
+        await state.update_data(admin_datas=dict_admin)
         await state.set_state(DeleteAdmin.admin)
-        await callback.message.answer(f"Введите цифру, чей аккаунт администртора вы хотите удалить: \n{message}")
+        await callback.message.answer(
+            f"Введите цифру, чей аккаунт администратора вы хотите удалить:\n{message}"
+        )
         await callback.answer()
     else:
         await sqlbase_add_admins.close()
@@ -122,20 +126,24 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
 
 
+
 @router_add_admins.message(F.text, DeleteAdmin.admin)
 async def delete_admin_two(message: Message, state: FSMContext):
-    data = await state.get_value("admin_data")
-    logging.info(data.get(message.text)[1])
-    if data.get(message.text):
-        try:
-            await sqlbase_add_admins.delete_admins(data.get(message.text)[1])
-            await message.answer("Аккаунт удалён")
-            await state.clear()
-            await sqlbase_add_admins.close()
-            await bot.send_message(chat_id=data.get(message.text)[1], text="Ваш аккаунт удалён из администраторов")
-        except Exception as e:
-            await state.clear()
-            await sqlbase_add_admins.close()
-            await message.answer(f"Ошибка: {e}")
-    else:
+    data = await state.get_data()
+    admin_datas = data.get("admin_datas")
+
+    if not admin_datas or message.text not in admin_datas:
         await message.answer("Такого аккаунта нет! Введите снова:")
+        return
+
+    username, chat_id = admin_datas[message.text]
+    try:
+        await sqlbase_add_admins.delete_admins(chat_id)
+        await message.answer("Аккаунт удалён")
+        await bot.send_message(chat_id=chat_id, text="Ваш аккаунт удалён из администраторов")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+    finally:
+        await sqlbase_add_admins.close()
+        await state.clear()
+
