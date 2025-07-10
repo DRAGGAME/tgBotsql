@@ -107,7 +107,8 @@ async def delete_admin(callback: CallbackQuery, state: FSMContext):
         message = ''
         for count, admin_data in enumerate(admins):
             message += f"{count}) {admin_data[0]}\n"
-            dict_admin.update(f"{count}: {admin_data}")
+            add_admin = {count: admin_data}
+            dict_admin |= add_admin
 
         await state.update_data(admin_data=admin_data)
         await callback.message.answer(f"Введите цифру, чей аккаунт администртора вы хотите удалить: \n{message}")
