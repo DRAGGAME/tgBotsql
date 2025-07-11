@@ -91,7 +91,7 @@ async def login(callback: CallbackQuery, state: FSMContext):
         await state.set_state(LoginState.name)
 
 
-@router_for_admin.message(Command("login"))
+@router_for_admin.message(Command(commands=["login", "Login"]))
 async def login_default(message: Message, state: FSMContext):
     """
     Функция для супер-админа
@@ -106,20 +106,14 @@ async def login_default(message: Message, state: FSMContext):
     kb_super_admin = await keyboard.inline_admin_main_menu()
     kb_admin = await keyboard.inline_main_menu()
     if password[0][0] and password[0][1] == str(message.chat.id):
-        try:
-            await message.edit_text("Вы уже супер-администратор\nВыберите действие:",
+        await message.answer("Вы уже супер-администратор\nВыберите действие:",
                                     reply_markup=kb_super_admin)
-        except TelegramBadRequest:
-            pass
         await sqlbase_for_admin_function.close()
         return
 
     elif password[0][0]:
-        try:
-            await message.answer("Кто-то другой под аккаунтом супер-администратора.\nВход - невозможен",
+        await message.answer("Кто-то другой под аккаунтом супер-администратора.\nВход - невозможен",
                                  reply_markup=kb_admin)
-        except TelegramBadRequest:
-            pass
         await sqlbase_for_admin_function.close()
         return
 
