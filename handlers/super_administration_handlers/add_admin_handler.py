@@ -31,7 +31,7 @@ async def adds_admins(callback: CallbackQuery, state: FSMContext):
     await sqlbase_add_admins.connect()
     check_login = await sqlbase_add_admins.check_login()
     check_chat = await sqlbase_add_admins.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
-    if check_login and check_chat == callback.message.chat.id:
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         not_active_accounts = await sqlbase_add_admins.execute_query(
             """SELECT username, chat_id FROM admin_list_table WHERE activate=False""")
         if not_active_accounts:
@@ -51,7 +51,8 @@ async def adds_admins(callback: CallbackQuery, state: FSMContext):
 async def add_admins_handler(callback: CallbackQuery, callback_data: InlineAddAdmin, state: FSMContext):
     await sqlbase_add_admins.connect()
     check_login = await sqlbase_add_admins.check_login()
-    if check_login:
+    check_chat = await sqlbase_add_admins.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         data_action = callback_data.action
 
         accounts: list = await state.get_value("not_active_accounts")

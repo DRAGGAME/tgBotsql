@@ -49,7 +49,8 @@ class UpdateAddress(StatesGroup):
 async def start_address(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_places.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         admin_kb = await keyboard_fabric.inline_admin_main_menu()
         await state.update_data(admin_kb=admin_kb)
         kb = await keyboard_fabric.stop()
@@ -144,7 +145,8 @@ async def photos(message: Message, state: FSMContext):
 async def edit_messages(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_places.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
 
         keyboard = await keyboard_fabric.builder_choice()
         await callback.message.answer('Выберите сообщение, которое вы хотите изменить', reply_markup=keyboard)
@@ -208,7 +210,8 @@ async def remove_places(message: Message, state: FSMContext):
 async def update_place(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_places.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         kb = await keyboard_fabric.inline_admin_main_menu()
         await state.update_data(kb_place_edit=kb)
         n = ""
@@ -340,7 +343,8 @@ async def address_name_for_message(message: Message, state: FSMContext):
 async def remove_place(callback: CallbackQuery, state: FSMContext):
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_places.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         kb = await keyboard_fabric.inline_admin_main_menu()
         await state.update_data(kb_address_remove=kb)
 
@@ -377,9 +381,11 @@ async def remove_places(message: Message, state: FSMContext):
 @router_for_places.callback_query(InlineMainMenu.filter(F.action == "remove_place"))
 async def remove_place(callback: CallbackQuery, state: FSMContext):
     """Удаление мест"""
+
     await sqlbase_for_places.connect()
     check_login = await sqlbase_for_places.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_places.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         kb = await keyboard_fabric.inline_admin_main_menu()
         await state.update_data(kb_remove_place=kb)
         mesage = await place_for(sqlbase_for_places)

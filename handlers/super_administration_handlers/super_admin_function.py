@@ -20,7 +20,8 @@ async def new_name(callback: CallbackQuery, state: FSMContext):
     """Обновление имени бота"""
     await sqlbase_admin_function.connect()
     check_login = await sqlbase_admin_function.check_login()
-    if check_login:
+    check_chat = await sqlbase_admin_function.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
 
         await callback.message.answer('Напишите имя бота')
         await callback.answer()

@@ -153,7 +153,8 @@ async def upd(callback: CallbackQuery, state: FSMContext):
     """Изменение пароля"""
     await sqlbase_for_admin_function.connect()
     check_login = await sqlbase_for_admin_function.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_admin_function.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         kb = await keyboard.stop()
         await state.update_data(keyboard_stop=kb)
         await callback.message.answer('Введите новый пароль', reply_markup=kb)
@@ -196,7 +197,8 @@ async def update_query(callback: CallbackQuery, state: FSMContext):
     """Изменение пароля"""
     await sqlbase_for_admin_function.connect()
     check_login = await sqlbase_for_admin_function.check_login()
-    if check_login:
+    check_chat = await sqlbase_for_admin_function.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(callback.message.chat.id):
         kb = await keyboard.stop()
         await state.update_data(keyboard_stop=kb)
         await callback.message.answer('Введите новый пароль для заявок', reply_markup=kb)
