@@ -21,11 +21,11 @@ async def command_help(message: Message):
 
         if check_login and check_chat[0][0] == str(message.chat.id):
             await message.reply("Команды для администраторов:\n"
-                                "/start - если что-то <b>координально не работает, к примеру, раньше та или иная кнопка - работала, а теперь - нет\n",
+                                "/start - если что-то <b>координально</b> не работает, к примеру, раньше та или иная кнопка - работала, а теперь - нет\n",
                                 parse_mode=ParseMode.HTML)
         elif check_admin.index((str(message.chat.id),)):
             await message.reply("Команды для администраторов:\n"
-                                "/start - если что-то <b>координально не работает, к примеру, раньше та или иная кнопка - работала, а теперь - нет\n",
+                                "/start - если что-то <b>координально</b> не работает, к примеру, раньше та или иная кнопка - работала, а теперь - нет\n",
                                 parse_mode=ParseMode.HTML)
 
     except ValueError:
