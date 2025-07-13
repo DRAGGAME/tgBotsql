@@ -139,6 +139,7 @@ async def delete_admin_two(message: Message, state: FSMContext):
 
     username, chat_id = admin_datas[message.text]
     try:
+        scheduler.remove_job(job_id=str(message.chat.id))
         await sqlbase_add_admins.delete_admins(chat_id)
         await message.answer("Аккаунт удалён")
         await bot.send_message(chat_id=chat_id, text="Ваш аккаунт удалён из администраторов")
