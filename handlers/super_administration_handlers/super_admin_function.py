@@ -34,13 +34,9 @@ async def new_name(callback: CallbackQuery, state: FSMContext):
 @router_for_admin_function.message(NameBot.name, F.text)
 async def name(message: Message, state: FSMContext):
     kb = await keyboard_fabric.inline_admin_main_menu()
-    if message.text.lower() == 'стоп':  # Проверяем, завершил ли пользователь процесс
-        await message.answer("Принудительно завершён процесс изменения имени клиентского бота.", reply_markup=kb)
-        await state.clear()
-    else:
-        await state.update_data(name=message.text)
-        data = await state.get_data()
-        await sqlbase_admin_function.connect()
-        await sqlbase_admin_function.execute_query('''UPDATE settings_for_admin SET bot_name = $1''', (data['name'],))
-        await sqlbase_admin_function.close()
-        await message.answer('Имя перезаписано', reply_markup=kb)
+    await state.update_data(name=message.text)
+    data = await state.get_data()
+    await sqlbase_admin_function.connect()
+    await sqlbase_admin_function.execute_query('''UPDATE settings_for_admin SET bot_name = $1''', (data['name'],))
+    await sqlbase_admin_function.close()
+    await message.answer('Имя перезаписано', reply_markup=kb)

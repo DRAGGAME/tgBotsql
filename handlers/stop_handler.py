@@ -18,16 +18,14 @@ async def stop_message(message: Message, state: FSMContext):
     """
     await sqlbase.connect()
     check_login = await sqlbase.check_login()
-    kb = await keyboard.stop()
-    if check_login:
-
+    check_chat = await sqlbase.execute_query("""SELECT superuser_chat_id FROM settings_for_admin""")
+    if check_login and check_chat[0][0] == str(message.chat.id):
         kb_new = await keyboard_fabric.inline_admin_main_menu()
     else:
         kb_new = await keyboard_fabric.inline_main_menu()
-    await message.answer("Операция отменена.")
     await message.answer(
-        "Панель действий:",
-        reply_markup=kb
+        "Операция отменена"
+        "\nПанель действий:",
+        reply_markup=kb_new
     )
-    await message.edit_reply_markup(reply_markup=kb_new)
     await state.clear()

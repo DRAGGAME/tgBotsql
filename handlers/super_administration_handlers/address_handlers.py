@@ -235,20 +235,16 @@ async def update_address_one(message: Message, state: FSMContext):
     for nummer in data['local']:
         user_number += str(nummer)
 
-    # Проверка на то существует ли место
     if message.text in user_number:
         value_data = data['local'][int(message.text)]
         await state.update_data(place=value_data)
 
-        # Извлекаем данные из базы данных по адресу
         all_update = await sqlbase_for_places.execute_query(
             '''SELECT * FROM message WHERE place = $1 ORDER BY id ASC ''', (value_data,))
         await state.update_data(value_data=all_update)
-        # Проверяем, что результат существует
         if all_update:
             img_blob = all_update[0][3]
 
-            # Создаём поток из байтов
             image_stream = io.BytesIO(img_blob)
             image_stream.seek(0)
 
