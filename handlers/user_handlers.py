@@ -50,9 +50,10 @@ async def yes_for_answer(message: Message, state: FSMContext):
 
 @user_router.message(AnswerForAdmin.accept, F.text.lower().contains('нет'))
 async def no_for_answer(message: Message, state: FSMContext):
+    kb = await keyboard.builder_reply_new_query()
     await user_sqlbase.close()
     await state.clear()
-    await message.answer("Вы отменили подачу заявки")
+    await message.answer("Вы отменили подачу заявки", reply_markup=kb)
 
 
 @user_router.message(AnswerForAdmin.password)
