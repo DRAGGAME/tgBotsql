@@ -80,7 +80,7 @@ async def password_state(message: Message, state: FSMContext):
 
         await state.clear()
         await user_sqlbase.insert_new_query(chat_id, username)
-        await message.answer("Мы отправили запрос. Вы получите уведомление, как только оно будет принято")
+        await message.answer("Запрос отправлен. Вы получите уведомление, как только он будет принят")
     else:
         kb = await keyboard.builder_reply_new_query()
 
