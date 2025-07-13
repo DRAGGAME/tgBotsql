@@ -48,6 +48,13 @@ async def yes_for_answer(message: Message, state: FSMContext):
     await message.answer("Введите пароль для возможности отправки заявки")
 
 
+@user_router.message(AnswerForAdmin.accept, F.text.lower().contains('нет'))
+async def no_for_answer(message: Message, state: FSMContext):
+    await user_sqlbase.close()
+    await state.clear()
+    await message.answer("Вы отменили подачу заявки")
+
+
 @user_router.message(AnswerForAdmin.password)
 @user_router.message(F.text.lower() == 'отправить')
 async def password_state(message: Message, state: FSMContext):
