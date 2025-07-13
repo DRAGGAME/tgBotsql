@@ -24,8 +24,8 @@ async def stop_message(message: Message, state: FSMContext):
     else:
         kb_new = await keyboard_fabric.inline_main_menu()
     await message.answer(
-        "Операция отменена"
-        "\nПанель действий:",
+        "Операция отменена\n"
+        "Панель действий:",
         reply_markup=kb_new
     )
     await state.clear()
